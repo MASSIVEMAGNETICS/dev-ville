@@ -323,7 +323,8 @@ class DevVilleApp:
         while self.is_running:
             self.company.work_cycle(1.0)  # 1 second per cycle
             self.root.after(0, self.update_ui)
-            time.sleep(1.0)  # Sleep for 1 second
+            # Adjust sleep based on time speed for accurate fast-forward
+            time.sleep(1.0 / self.company.time_speed)
             
     def change_speed(self, event=None):
         """Change simulation speed"""

@@ -4,6 +4,14 @@ Demo script for Dev-Ville showcasing the Beta Testing Team
 from company import Company
 
 
+def extract_log_message(log_entry):
+    """Extract message from log entry, handling various formats"""
+    if ']' in log_entry:
+        parts = log_entry.split('] ', 1)
+        return parts[1] if len(parts) > 1 else log_entry
+    return log_entry
+
+
 def main():
     print("=" * 80)
     print(" " * 20 + "DEV-VILLE BETA TESTING DEMO")
@@ -54,7 +62,7 @@ def main():
             print(f"\n{tester.name}:")
             beta_logs = [log for log in tester.log if 'Beta testing' in log]
             for log in beta_logs:
-                print(f"  {log.split('] ')[1] if ']' in log else log}")
+                print(f"  {extract_log_message(log)}")
             
             if hasattr(tester, 'bugs_found') and tester.bugs_found:
                 print(f"\n  Bugs Found: {len(tester.bugs_found)}")
