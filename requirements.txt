@@ -1,6 +1,6 @@
 # Core dependencies
 tkinter-modernui==1.0.0
-Pillow==10.3.0
+Pillow==12.1.1
 
 # For AI simulation (simple rule-based for now)
 # In a real implementation, this could use OpenAI API or other LLM services
