@@ -235,6 +235,39 @@ class Company:
         for agent in self.agents:
             if agent.name in agent_data:
                 agent.log = agent_data[agent.name].get('logs', [])
+    
+    def continue_project(self):
+        """Continue working on the current project by reassigning incomplete tasks"""
+        if not self.current_project:
+            return False
+        
+        # Reset all agents to idle state if not already
+        for agent in self.agents:
+            if not agent.current_task and not agent.task_queue:
+                agent.status = "idle"
+        
+        # Find incomplete tasks and reassign them
+        incomplete_tasks = [
+            task for task in self.current_project.tasks 
+            if task.get('progress', 0) < task.get('effort', 100)
+        ]
+        
+        if incomplete_tasks:
+            # Clear old assignments first
+            for task in incomplete_tasks:
+                task.pop('assigned_to', None)
+            
+            # Reassign tasks
+            self.assign_tasks(incomplete_tasks)
+            
+            # Log that we're continuing
+            for agent in self.agents:
+                if agent.current_task or agent.task_queue:
+                    agent.log_activity(f"Continuing work on project: {self.current_project.name}")
+            
+            return True
+        
+        return False
                 
     def export_files(self, export_dir: str):
         """Export all project files"""

@@ -63,6 +63,7 @@ class DevVilleApp:
         menubar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="New Project", command=self.new_project_dialog)
         file_menu.add_command(label="Open Project", command=self.open_project)
+        file_menu.add_command(label="Continue Project", command=self.continue_project)
         file_menu.add_command(label="Save Project", command=self.save_project)
         file_menu.add_separator()
         file_menu.add_command(label="Export All Files", command=self.export_files)
@@ -91,7 +92,8 @@ class DevVilleApp:
         self.directive_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
         self.directive_entry.insert(0, "Create a modern web application for task management")
         
-        ttk.Button(input_frame, text="Start Project", command=self.start_project).grid(row=0, column=2)
+        ttk.Button(input_frame, text="Start Project", command=self.start_project).grid(row=0, column=2, padx=(0, 5))
+        ttk.Button(input_frame, text="Continue", command=self.continue_project).grid(row=0, column=3)
         
         # Time controls
         time_frame = ttk.Frame(control_frame)
@@ -479,10 +481,59 @@ class DevVilleApp:
             try:
                 self.company.load_project(filepath)
                 self.update_ui()
-                messagebox.showinfo("Success", f"Project loaded from {filepath}")
-                self.status_label.config(text=f"Project loaded: {filepath}")
+                
+                # Check if project has incomplete tasks
+                if self.company.current_project:
+                    incomplete_tasks = [
+                        task for task in self.company.current_project.tasks 
+                        if task.get('progress', 0) < task.get('effort', 100)
+                    ]
+                    
+                    if incomplete_tasks:
+                        msg = f"Project loaded from {filepath}\n\n"
+                        msg += f"This project has {len(incomplete_tasks)} incomplete task(s).\n"
+                        msg += "Click 'Continue' to resume work or 'Play' after continuing."
+                        messagebox.showinfo("Project Loaded", msg)
+                        self.status_label.config(text=f"Project loaded - Click 'Continue' to resume")
+                    else:
+                        messagebox.showinfo("Success", f"Project loaded from {filepath}\n\nProject is complete!")
+                        self.status_label.config(text=f"Project loaded: {filepath}")
+                else:
+                    messagebox.showinfo("Success", f"Project loaded from {filepath}")
+                    self.status_label.config(text=f"Project loaded: {filepath}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load project: {str(e)}")
+    
+    def continue_project(self):
+        """Continue working on the current project"""
+        if not self.company.current_project:
+            messagebox.showwarning("No Project", "Please load or start a project first")
+            return
+        
+        # Check if project is already complete
+        if self.company.current_project.progress >= 100:
+            messagebox.showinfo("Project Complete", 
+                              "This project is already complete!\n\n"
+                              "You can still export files or logs.")
+            return
+        
+        # Continue the project
+        result = self.company.continue_project()
+        
+        if result:
+            self.update_ui()
+            incomplete_count = sum(
+                1 for task in self.company.current_project.tasks 
+                if task.get('progress', 0) < task.get('effort', 100)
+            )
+            messagebox.showinfo("Project Continued", 
+                              f"Project resumed!\n\n"
+                              f"{incomplete_count} task(s) reassigned to agents.\n"
+                              f"Click 'Play' to start work simulation.")
+            self.status_label.config(text="Project continued - Click 'Play' to start")
+        else:
+            messagebox.showwarning("No Tasks", "No incomplete tasks found to continue")
+            self.status_label.config(text="No incomplete tasks")
                 
     def export_files(self):
         """Export all project files"""

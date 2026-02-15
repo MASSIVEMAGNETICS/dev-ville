@@ -167,6 +167,54 @@ def test_log_export():
     print()
 
 
+def test_continue_project():
+    """Test continue project functionality"""
+    print("Test 9: Continue Project")
+    
+    # Create and partially complete a project
+    company1 = Company()
+    company1.start_project("Test project for continue")
+    
+    # Run some work but don't complete
+    for _ in range(10):
+        company1.work_cycle(1.0)
+    
+    initial_progress = company1.current_project.progress
+    print(f"Initial progress: {initial_progress:.1f}%")
+    
+    # Save project
+    os.makedirs('projects', exist_ok=True)
+    save_path = 'projects/test_continue_project.json'
+    company1.save_project(save_path)
+    print(f"✓ Project saved to {save_path}")
+    
+    # Load project in new company
+    company2 = Company()
+    company2.load_project(save_path)
+    print(f"✓ Project loaded")
+    
+    # Continue the project
+    result = company2.continue_project()
+    assert result == True, "Continue should return True when there are incomplete tasks"
+    print(f"✓ Project continued successfully")
+    
+    # Verify agents have tasks
+    agents_with_tasks = sum(1 for agent in company2.agents 
+                           if agent.current_task or agent.task_queue)
+    print(f"  {agents_with_tasks} agents have tasks assigned")
+    
+    # Run more work
+    for _ in range(10):
+        company2.work_cycle(1.0)
+    
+    final_progress = company2.current_project.progress
+    print(f"Progress after continuing: {final_progress:.1f}%")
+    
+    assert final_progress > initial_progress, "Progress should increase after continuing"
+    print("✓ Work continued and progressed correctly")
+    print()
+
+
 def run_all_tests():
     """Run all tests"""
     print("=" * 80)
@@ -182,7 +230,8 @@ def run_all_tests():
         test_task_assignment,
         test_file_generation,
         test_save_load_project,
-        test_log_export
+        test_log_export,
+        test_continue_project
     ]
     
     passed = 0
