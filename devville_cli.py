@@ -1,6 +1,7 @@
 """
 Dev-Ville CLI: Command-Line Interface Version
-For environments without GUI support
+For environments without GUI support.
+Includes user steering, emotional intelligence, and interactive runtime.
 """
 import sys
 import time
@@ -20,24 +21,30 @@ class DevVilleCLI:
         print("=" * 80)
         print(" " * 25 + "DEV-VILLE")
         print(" " * 15 + "AI Software Company Simulator")
+        print(" " * 10 + "User Steering | Emotional Intelligence | Interactive Runtime")
         print("=" * 80)
         print()
         
     def print_menu(self):
         """Print main menu"""
         print("\nMain Menu:")
-        print("1. Start New Project")
-        print("2. Continue Project")
-        print("3. View Agents Status")
-        print("4. View Activity Log")
-        print("5. View Tasks")
-        print("6. View Generated Files")
-        print("7. Run Simulation (10 cycles)")
-        print("8. Save Project")
-        print("9. Load Project")
+        print("1.  Start New Project")
+        print("2.  Continue Project")
+        print("3.  View Agents Status")
+        print("4.  View Activity Log")
+        print("5.  View Tasks")
+        print("6.  View Generated Files")
+        print("7.  Run Simulation (10 cycles)")
+        print("8.  Save Project")
+        print("9.  Load Project")
         print("10. Export Files")
         print("11. Export Logs")
-        print("0. Exit")
+        print("12. Steer Agents (User Directive)")
+        print("13. Send Feedback to Agents")
+        print("14. View Team Morale")
+        print("15. View Beta Test Summary")
+        print("16. Set Focus Areas")
+        print("0.  Exit")
         print()
         
     def start_project(self):
@@ -81,14 +88,16 @@ class DevVilleCLI:
             print("\n✗ No incomplete tasks found to continue")
             
     def view_agents(self):
-        """View agents status"""
+        """View agents status including emotional state"""
         print("\n--- Agents Status ---")
-        print(f"{'Name':<25} {'Role':<30} {'Status':<12} {'Current Task':<30}")
-        print("-" * 100)
+        print(f"{'Name':<25} {'Role':<25} {'Status':<10} {'Emotion':<12} {'Morale':<8} {'Current Task':<30}")
+        print("-" * 115)
         
         for agent in self.company.agents:
             status = agent.get_status()
-            print(f"{status['name']:<25} {status['role']:<30} {status['status']:<12} {status['current_task']:<30}")
+            print(f"{status['name']:<25} {status['role']:<25} {status['status']:<10} "
+                  f"{status.get('emotion', 'N/A'):<12} {status.get('morale', 'N/A'):<8} "
+                  f"{status['current_task']:<30}")
             
     def view_log(self):
         """View activity log"""
@@ -140,7 +149,8 @@ class DevVilleCLI:
         for i in range(10):
             self.company.work_cycle(1.0)
             progress = self.company.current_project.calculate_progress()
-            print(f"Cycle {i+1}/10 - Progress: {progress:.1f}%")
+            morale = self.company.get_team_morale()
+            print(f"Cycle {i+1}/10 - Progress: {progress:.1f}% | Team: {morale['team_emotion']}")
             time.sleep(0.5)  # Brief pause for visibility
             
         print("\n✓ Simulation complete")
@@ -216,7 +226,90 @@ class DevVilleCLI:
             
         self.company.export_logs(export_dir)
         print(f"✓ Logs exported to {export_dir}")
-        
+
+    def steer_agents(self):
+        """Send a steering directive to guide agents"""
+        if not self.company.current_project:
+            print("\n✗ No active project")
+            return
+
+        print("\n--- Steer Agents ---")
+        print("Enter a directive to guide the agents:")
+        directive = input("> ").strip()
+        if not directive:
+            print("✗ No directive provided")
+            return
+
+        priority = input("Priority (low/normal/high/critical) [normal]: ").strip() or "normal"
+        target = input("Target role (leave empty for all): ").strip() or None
+
+        result = self.company.steer(directive, priority=priority, target_role=target)
+        print(f"✓ Steering directive added: {result['directive']}")
+        print(f"  Priority: {result['priority']}, Target: {result.get('target_role', 'all agents')}")
+
+    def send_feedback(self):
+        """Send feedback to agents"""
+        if not self.company.current_project:
+            print("\n✗ No active project")
+            return
+
+        print("\n--- Send Feedback ---")
+        print("Enter your feedback:")
+        feedback = input("> ").strip()
+        if not feedback:
+            print("✗ No feedback provided")
+            return
+
+        sentiment = input("Sentiment (positive/neutral/negative) [neutral]: ").strip() or "neutral"
+        target = input("Target agent name (leave empty for all): ").strip() or None
+
+        result = self.company.send_feedback(feedback, sentiment=sentiment, target_agent=target)
+        print(f"✓ Feedback sent ({result['sentiment']}): {result['feedback']}")
+
+    def view_team_morale(self):
+        """View team morale and emotional state"""
+        print("\n--- Team Morale ---")
+        morale = self.company.get_team_morale()
+        print(f"  Team Emotion:      {morale['team_emotion']}")
+        print(f"  Average Morale:    {morale['average_morale']:.2f}")
+        print(f"  Average Stress:    {morale['average_stress']:.2f}")
+        print(f"  Average Confidence:{morale['average_confidence']:.2f}")
+        print(f"  Agent Count:       {morale['agent_count']}")
+
+        print("\n  Individual States:")
+        print(f"  {'Name':<25} {'Emotion':<15} {'Morale':<10} {'Stress':<10}")
+        print("  " + "-" * 60)
+        for agent in self.company.agents:
+            es = agent.emotional_state
+            print(f"  {agent.name:<25} {es.current_emotion:<15} {es.morale:<10.2f} {es.stress:<10.2f}")
+
+    def view_beta_summary(self):
+        """View beta test summary"""
+        print("\n--- Beta Test Summary ---")
+        summary = self.company.get_beta_test_summary()
+        print(f"  Testers:           {summary['testers']}")
+        print(f"  Total Bugs:        {summary['total_bugs']}")
+        print(f"  Severity:          {summary['severity_breakdown']}")
+        print(f"  Test Reports:      {summary['total_test_reports']}")
+        print(f"  Average UX Score:  {summary['average_ux_score']}/5.0")
+
+    def set_focus_areas(self):
+        """Set focus areas for agents"""
+        if not self.company.current_project:
+            print("\n✗ No active project")
+            return
+
+        print("\n--- Set Focus Areas ---")
+        print("Available: security, performance, testing, ui, api, database, analytics, auth")
+        areas_input = input("Enter focus areas (comma separated): ").strip()
+        if not areas_input:
+            print("✗ No focus areas provided")
+            return
+
+        areas = [a.strip() for a in areas_input.split(",") if a.strip()]
+        self.company.set_focus(areas)
+        print(f"✓ Focus areas set: {areas}")
+
     def run(self):
         """Main run loop"""
         self.print_banner()
@@ -248,6 +341,16 @@ class DevVilleCLI:
                     self.export_files()
                 elif choice == '11':
                     self.export_logs()
+                elif choice == '12':
+                    self.steer_agents()
+                elif choice == '13':
+                    self.send_feedback()
+                elif choice == '14':
+                    self.view_team_morale()
+                elif choice == '15':
+                    self.view_beta_summary()
+                elif choice == '16':
+                    self.set_focus_areas()
                 elif choice == '0':
                     print("\nThank you for using Dev-Ville!")
                     self.running = False
