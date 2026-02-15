@@ -545,6 +545,399 @@ def test_save_load_with_emotions():
     print()
 
 
+def test_research_findings():
+    """Test research findings system"""
+    print("Test 17: Research Findings")
+    from agents import ResearcherAgent
+
+    company = Company()
+    company.start_project("Create a web application with analytics")
+
+    # Run enough cycles to complete research
+    for _ in range(30):
+        company.work_cycle(2.0)
+
+    summary = company.get_research_summary()
+    assert 'total_findings' in summary
+    assert 'researchers' in summary
+    assert summary['researchers'] == 2
+    print(f"✓ Research summary: {summary['total_findings']} findings from {summary['researchers']} researchers")
+
+    if summary['total_findings'] > 0:
+        assert len(summary['technologies_evaluated']) > 0
+        assert summary['average_confidence'] > 0
+        print(f"✓ Technologies evaluated: {summary['technologies_evaluated'][:3]}")
+        print(f"  Confidence: {summary['average_confidence']}")
+
+        # Check individual findings
+        for finding in summary['findings']:
+            assert 'recommended_technology' in finding
+            assert 'technologies_evaluated' in finding
+            assert 'confidence_score' in finding
+            assert 'recommendations' in finding
+        print("✓ Findings contain structured data")
+    else:
+        print("✓ Research system initialized (findings generated during task completion)")
+    print()
+
+
+def test_ticket_system():
+    """Test advanced ticket system"""
+    print("Test 18: Advanced Ticket System")
+    from agents import Ticket
+
+    # Test ticket creation
+    ticket = Ticket("Build API", "Create REST API endpoints", "backend", priority="high")
+    assert ticket.status == 'open'
+    assert ticket.priority == 'high'
+    assert ticket.id > 0
+    print(f"✓ Ticket created: #{ticket.id} '{ticket.title}'")
+
+    # Test ticket lifecycle
+    ticket.assign("Michael Brown")
+    assert ticket.status == 'in_progress'
+    assert ticket.assigned_to == "Michael Brown"
+    print("✓ Ticket assigned and moved to in_progress")
+
+    ticket.submit_for_review()
+    assert ticket.status == 'in_review'
+    print("✓ Ticket submitted for review")
+
+    ticket.approve("James O'Brien", "Looks good")
+    assert ticket.status == 'testing'
+    assert ticket.reviewed_by == "James O'Brien"
+    print("✓ Ticket approved by supervisor")
+
+    ticket.complete()
+    assert ticket.status == 'done'
+    assert ticket.completed_at is not None
+    print("✓ Ticket completed")
+
+    # Test history
+    assert len(ticket.history) == 5  # created, assigned, submitted, approved, completed
+    print(f"✓ Ticket history: {len(ticket.history)} entries")
+
+    # Test rejection flow
+    ticket2 = Ticket("Fix Bug", "Fix login issue", "frontend")
+    ticket2.assign("Emily Zhang")
+    ticket2.submit_for_review()
+    ticket2.reject("Natasha Volkov", "Needs more error handling")
+    assert ticket2.status == 'in_progress'
+    print("✓ Ticket rejection flow works")
+
+    # Test serialization
+    ticket_dict = ticket.to_dict()
+    restored = Ticket.from_dict(ticket_dict)
+    assert restored.id == ticket.id
+    assert restored.status == 'done'
+    assert restored.title == "Build API"
+    print("✓ Ticket serialization/deserialization works")
+
+    # Test tickets in company
+    company = Company()
+    company.start_project("Build a web app")
+    assert len(company.current_project.tickets) > 0
+    print(f"✓ {len(company.current_project.tickets)} tickets created for project")
+
+    ticket_summary = company.get_ticket_summary()
+    assert ticket_summary['total'] > 0
+    print(f"✓ Ticket summary: {ticket_summary}")
+    print()
+
+
+def test_supervisor_agent():
+    """Test supervisor agent"""
+    print("Test 19: Supervisor Agent")
+    from agents import SupervisorAgent, Ticket
+
+    supervisor = SupervisorAgent("Test Supervisor")
+    assert supervisor.role == "Supervisor"
+    print("✓ Supervisor agent created")
+
+    # Test ticket review
+    ticket = Ticket("Test Task", "Test description", "backend")
+    ticket.assign("Dev Agent")
+    ticket.submit_for_review()
+
+    review = supervisor.review_ticket(ticket, quality_pass=True)
+    assert review['passed'] == True
+    assert ticket.status == 'testing'
+    print("✓ Supervisor approved ticket")
+
+    # Test rejection
+    ticket2 = Ticket("Test Task 2", "Another task", "frontend")
+    ticket2.assign("Dev Agent 2")
+    ticket2.submit_for_review()
+
+    review2 = supervisor.review_ticket(ticket2, quality_pass=False)
+    assert review2['passed'] == False
+    assert ticket2.status == 'in_progress'
+    print("✓ Supervisor rejected ticket")
+
+    # Test quality report
+    report = supervisor.get_quality_report()
+    assert report['total_reviews'] == 2
+    assert report['passed'] == 1
+    assert report['rejected'] == 1
+    print(f"✓ Quality report: {report['approval_rate']:.0%} approval rate")
+
+    # Test escalation
+    escalation = supervisor.escalate_issue("Critical bug in production", severity="critical")
+    assert escalation['severity'] == 'critical'
+    assert not escalation['resolved']
+    print("✓ Issue escalation recorded")
+
+    # Test supervisor in company
+    company = Company()
+    company.start_project("Build a dashboard")
+    for _ in range(30):
+        company.work_cycle(2.0)
+
+    supervisor_report = company.get_supervisor_report()
+    assert 'supervisors' in supervisor_report
+    assert supervisor_report['supervisors'] == 2
+    print(f"✓ Company supervisor report: {supervisor_report['total_reviews']} reviews")
+    print()
+
+
+def test_reward_system():
+    """Test agent reward system"""
+    print("Test 20: Reward System")
+    from agents import RewardSystem
+
+    rs = RewardSystem()
+
+    # Test task completion rewards
+    achievements = rs.record_task_completion("Agent A")
+    assert rs.total_points["Agent A"] >= 10
+    assert any(a['name'] == 'First Task Complete' for a in achievements)
+    print("✓ First task achievement earned")
+
+    # Record more completions for streak
+    for _ in range(4):
+        achievements = rs.record_task_completion("Agent A")
+
+    assert rs.streaks["Agent A"] == 5
+    assert 'five_tasks' in rs.achievements["Agent A"]
+    assert 'streak_3' in rs.achievements["Agent A"]
+    assert 'streak_5' in rs.achievements["Agent A"]
+    print(f"✓ Streak and milestone achievements: {rs.achievements['Agent A']}")
+
+    # Test leaderboard
+    rs.record_task_completion("Agent B")
+    leaderboard = rs.get_leaderboard()
+    assert len(leaderboard) == 2
+    assert leaderboard[0]['agent'] == "Agent A"  # Agent A has more points
+    print(f"✓ Leaderboard: {leaderboard[0]['agent']} leads with {leaderboard[0]['total_points']} pts")
+
+    # Test special award
+    award = rs.award_special("Agent B", "high_morale")
+    assert award is not None
+    assert award['name'] == 'Team Spirit'
+    print("✓ Special achievement awarded")
+
+    # Test no duplicate awards
+    duplicate = rs.award_special("Agent B", "high_morale")
+    assert duplicate is None
+    print("✓ Duplicate awards prevented")
+
+    # Test agent rewards summary
+    summary = rs.get_agent_rewards("Agent A")
+    assert summary['total_points'] > 0
+    assert summary['tasks_completed'] == 5
+    print(f"✓ Agent rewards summary: {summary['total_points']} pts, {summary['tasks_completed']} tasks")
+
+    # Test serialization
+    rs_dict = rs.to_dict()
+    restored = RewardSystem.from_dict(rs_dict)
+    assert restored.total_points["Agent A"] == rs.total_points["Agent A"]
+    print("✓ Reward system serialization works")
+
+    # Test rewards in company work cycle
+    company = Company()
+    company.start_project("Build a test app")
+    for _ in range(50):
+        company.work_cycle(2.0)
+
+    leaderboard = company.get_leaderboard()
+    if leaderboard:
+        print(f"✓ Company leaderboard: {len(leaderboard)} agents with rewards")
+        print(f"  Top agent: {leaderboard[0]['agent']} ({leaderboard[0]['total_points']} pts)")
+    else:
+        print("✓ Company reward system initialized")
+    print()
+
+
+def test_demo_recording():
+    """Test demo recording system"""
+    print("Test 21: Demo Recording")
+    from agents import DemoRecorder
+
+    dr = DemoRecorder()
+
+    # Test start/stop
+    dr.start()
+    assert dr.is_recording == True
+    assert dr.started_at is not None
+    print("✓ Demo recording started")
+
+    # Test event recording
+    dr.record_event('test_event', 'Test message', {'key': 'value'})
+    assert len(dr.events) == 2  # start event + test event
+    print("✓ Event recorded")
+
+    # Events not recorded when not recording
+    dr.stop()
+    assert dr.is_recording == False
+    dr.record_event('should_not_record', 'This should not be recorded')
+    assert len(dr.events) == 3  # start + test + stop (not the 4th one)
+    print("✓ Events not recorded when stopped")
+
+    # Test timeline
+    timeline = dr.get_timeline()
+    assert len(timeline) == 3
+    assert timeline[0]['type'] == 'recording_started'
+    assert timeline[1]['type'] == 'test_event'
+    assert timeline[2]['type'] == 'recording_stopped'
+    print("✓ Timeline retrieved correctly")
+
+    # Test export
+    os.makedirs('/tmp/test_demo', exist_ok=True)
+    dr.export('/tmp/test_demo/demo.json')
+    assert os.path.exists('/tmp/test_demo/demo.json')
+    print("✓ Demo exported to file")
+
+    # Test serialization
+    dr_dict = dr.to_dict()
+    restored = DemoRecorder.from_dict(dr_dict)
+    assert len(restored.events) == len(dr.events)
+    print("✓ Demo recorder serialization works")
+
+    # Test company demo recording
+    company = Company()
+    company.start_demo_recording()
+    company.start_project("Build a dashboard")
+    for _ in range(20):
+        company.work_cycle(2.0)
+    company.stop_demo_recording()
+
+    timeline = company.get_demo_timeline()
+    assert len(timeline) > 2  # at least start and stop
+    print(f"✓ Company demo: {len(timeline)} events recorded")
+    print()
+
+
+def test_production_grade_artifacts():
+    """Test production-grade code generation"""
+    print("Test 22: Production-Grade Artifacts")
+
+    from agents import DeveloperAgent
+
+    # Test frontend produces production code
+    frontend_dev = DeveloperAgent("Test Frontend Dev", "Frontend")
+    frontend_task = {
+        'type': 'frontend',
+        'description': 'Build user dashboard',
+        'effort': 5,
+        'progress': 0,
+        'focus_areas': ['security']
+    }
+    frontend_dev.assign_task(frontend_task)
+
+    for _ in range(10):
+        result = frontend_dev.work(1.0)
+        if result:
+            break
+
+    assert len(frontend_dev.code_files) >= 2, "Should generate main file + test file"
+    code = frontend_dev.code_files[0]['content']
+    assert 'class FrontendController' in code
+    assert 'class FrontendMiddleware' in code
+    assert 'def get_health' in code
+    assert 'VERSION = "2.0.0"' in code
+    assert 'Dev-Ville Emulator' in code
+    print("✓ Frontend generates production-grade code with middleware, caching, health checks")
+
+    # Check companion test file was generated
+    test_file = next((f for f in frontend_dev.code_files if f['filename'].startswith('test_')), None)
+    assert test_file is not None
+    assert 'unittest' in test_file['content']
+    print("✓ Companion test file generated")
+
+    # Check config file was generated
+    config_file = next((f for f in frontend_dev.code_files if f['filename'].endswith('.json')), None)
+    assert config_file is not None
+    assert '"environment": "production"' in config_file['content']
+    print("✓ Configuration file generated")
+
+    # Test backend produces production code
+    backend_dev = DeveloperAgent("Test Backend Dev", "Backend")
+    backend_task = {
+        'type': 'backend',
+        'description': 'Build API service',
+        'effort': 5,
+        'progress': 0,
+        'focus_areas': ['analytics']
+    }
+    backend_dev.assign_task(backend_task)
+
+    for _ in range(10):
+        result = backend_dev.work(1.0)
+        if result:
+            break
+
+    assert len(backend_dev.code_files) >= 2
+    code = backend_dev.code_files[0]['content']
+    assert 'class BackendService' in code
+    assert 'class RateLimiter' in code
+    assert 'class CircuitBreaker' in code
+    assert 'def health_check' in code
+    assert 'VERSION = "2.0.0"' in code
+    print("✓ Backend generates production-grade code with rate limiter, circuit breaker")
+    print()
+
+
+def test_save_load_full_state():
+    """Test save/load preserves all new state (rewards, tickets, demo)"""
+    print("Test 23: Save/Load Full State")
+
+    company1 = Company()
+    company1.start_demo_recording()
+    company1.start_project("Test full persistence")
+
+    for _ in range(30):
+        company1.work_cycle(2.0)
+
+    company1.stop_demo_recording()
+
+    # Capture state before save
+    original_ticket_count = len(company1.current_project.tickets)
+    original_leaderboard = company1.get_leaderboard()
+    original_timeline_len = len(company1.get_demo_timeline())
+
+    os.makedirs('projects', exist_ok=True)
+    save_path = 'projects/test_full_state.json'
+    company1.save_project(save_path)
+    print("✓ Full state saved")
+
+    # Load and verify
+    company2 = Company()
+    company2.load_project(save_path)
+
+    assert len(company2.current_project.tickets) == original_ticket_count
+    print(f"✓ Tickets preserved: {len(company2.current_project.tickets)}")
+
+    loaded_leaderboard = company2.get_leaderboard()
+    if original_leaderboard:
+        assert loaded_leaderboard[0]['agent'] == original_leaderboard[0]['agent']
+        print(f"✓ Rewards preserved: top agent = {loaded_leaderboard[0]['agent']}")
+
+    loaded_timeline = company2.get_demo_timeline()
+    assert len(loaded_timeline) == original_timeline_len
+    print(f"✓ Demo recording preserved: {len(loaded_timeline)} events")
+    print()
+
+
 def run_all_tests():
     """Run all tests"""
     print("=" * 80)
@@ -569,6 +962,13 @@ def run_all_tests():
         test_beta_testing_enhanced,
         test_agent_collaboration,
         test_save_load_with_emotions,
+        test_research_findings,
+        test_ticket_system,
+        test_supervisor_agent,
+        test_reward_system,
+        test_demo_recording,
+        test_production_grade_artifacts,
+        test_save_load_full_state,
     ]
     
     passed = 0
