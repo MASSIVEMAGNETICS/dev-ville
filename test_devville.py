@@ -215,6 +215,335 @@ def test_continue_project():
     print()
 
 
+def test_emotional_intelligence():
+    """Test emotional intelligence system"""
+    print("Test 10: Emotional Intelligence")
+    from agents import EmotionalState
+
+    # Test emotional state initialization
+    state = EmotionalState()
+    assert state.morale == 0.75
+    assert state.stress == 0.2
+    assert state.current_emotion == "neutral"
+    print("✓ Emotional state initialized correctly")
+
+    # Test task completion boosts morale
+    state.update("task_completed")
+    assert state.morale > 0.75
+    assert state.stress < 0.2
+    print(f"✓ After task completion: morale={state.morale:.2f}, stress={state.stress:.2f}")
+
+    # Test negative feedback
+    state.update("negative_feedback")
+    prev_morale = state.morale
+    state.update("negative_feedback")
+    assert state.morale < prev_morale
+    print(f"✓ Negative feedback reduces morale: {state.morale:.2f}")
+
+    # Test productivity modifier
+    modifier = state.productivity_modifier()
+    assert 0.5 <= modifier <= 1.5
+    print(f"✓ Productivity modifier: {modifier:.2f}")
+
+    # Test agent emotional state integration
+    company = Company()
+    company.start_project("Build a test app")
+    for _ in range(10):
+        company.work_cycle(1.0)
+
+    # Check that agents have emotional states
+    for agent in company.agents:
+        assert hasattr(agent, 'emotional_state')
+        assert isinstance(agent.emotional_state, EmotionalState)
+    print("✓ All agents have emotional states")
+
+    # Check team morale
+    morale = company.get_team_morale()
+    assert 'average_morale' in morale
+    assert 'team_emotion' in morale
+    print(f"✓ Team morale: {morale['average_morale']:.2f}, emotion: {morale['team_emotion']}")
+
+    # Test emotional state serialization
+    state_dict = state.to_dict()
+    restored = EmotionalState.from_dict(state_dict)
+    assert abs(restored.morale - state.morale) < 0.01
+    assert restored.current_emotion == state.current_emotion
+    print("✓ Emotional state serialization works")
+    print()
+
+
+def test_user_steering():
+    """Test user steering system"""
+    print("Test 11: User Steering")
+
+    company = Company()
+    company.start_project("Create a web app with security features")
+
+    # Add a steering directive
+    result = company.steer("Focus on security best practices", priority="high")
+    assert result['directive'] == "Focus on security best practices"
+    assert result['priority'] == "high"
+    print("✓ Steering directive added")
+
+    # Add targeted directive
+    result = company.steer("Use React for frontend", target_role="Developer")
+    assert result['target_role'] == "Developer"
+    print("✓ Targeted steering directive added")
+
+    # Set focus areas
+    company.set_focus(["security", "performance"])
+    assert company.current_project.steering.focus_areas == ["security", "performance"]
+    print("✓ Focus areas set")
+
+    # Run work cycle to apply steering
+    company.work_cycle(1.0)
+
+    # Verify directives were applied
+    all_applied = all(
+        d['applied'] for d in company.current_project.steering.directives
+    )
+    assert all_applied, "All directives should be applied after work cycle"
+    print("✓ Steering directives applied during work cycle")
+
+    # Test feedback
+    entry = company.send_feedback("Great progress!", sentiment="positive")
+    assert entry['sentiment'] == "positive"
+    print("✓ User feedback sent to agents")
+
+    # Check feedback affected morale
+    for agent in company.agents:
+        assert agent.emotional_state.morale >= 0.7  # Should stay high with positive feedback
+    print("✓ Positive feedback maintained high morale")
+    print()
+
+
+def test_real_code_generation():
+    """Test real coding AI code generation"""
+    print("Test 12: Real Code Generation")
+
+    from agents import DeveloperAgent
+
+    # Test frontend code generation
+    frontend_dev = DeveloperAgent("Test Frontend Dev", "Frontend")
+    frontend_task = {
+        'type': 'frontend',
+        'description': 'Build user dashboard',
+        'effort': 5,
+        'progress': 0,
+        'focus_areas': ['security']
+    }
+    frontend_dev.assign_task(frontend_task)
+
+    for _ in range(10):
+        result = frontend_dev.work(1.0)
+        if result:
+            break
+
+    assert len(frontend_dev.code_files) > 0, "Should generate code files"
+    code = frontend_dev.code_files[0]['content']
+    assert 'class FrontendController' in code
+    assert 'def initialize' in code
+    assert 'def render_view' in code
+    print("✓ Frontend code generates real classes with methods")
+
+    # Test backend code generation
+    backend_dev = DeveloperAgent("Test Backend Dev", "Backend")
+    backend_task = {
+        'type': 'backend',
+        'description': 'Build API service',
+        'effort': 5,
+        'progress': 0,
+        'focus_areas': ['analytics']
+    }
+    backend_dev.assign_task(backend_task)
+
+    for _ in range(10):
+        result = backend_dev.work(1.0)
+        if result:
+            break
+
+    assert len(backend_dev.code_files) > 0
+    code = backend_dev.code_files[0]['content']
+    assert 'class BackendService' in code
+    assert 'def process_request' in code
+    assert 'def health_check' in code
+    print("✓ Backend code generates real service classes")
+
+    # Test architecture code generation
+    arch_dev = DeveloperAgent("Test Arch Dev", "Backend")
+    arch_task = {
+        'type': 'design',
+        'description': 'Design system architecture',
+        'effort': 5,
+        'progress': 0
+    }
+    arch_dev.assign_task(arch_task)
+
+    for _ in range(10):
+        result = arch_dev.work(1.0)
+        if result:
+            break
+
+    assert len(arch_dev.code_files) > 0
+    code = arch_dev.code_files[0]['content']
+    assert 'class SystemArchitecture' in code
+    print("✓ Architecture code generates design module")
+    print()
+
+
+def test_interactive_runtime():
+    """Test interactive agentic runtime"""
+    print("Test 13: Interactive Agentic Runtime")
+
+    company = Company()
+    company.start_project("Create a web dashboard")
+
+    # Test event registration
+    events_received = []
+
+    def on_task_completed(event):
+        events_received.append(event)
+
+    company.on("task_completed", on_task_completed)
+    print("✓ Event listener registered")
+
+    # Run simulation until a task completes
+    for _ in range(30):
+        company.work_cycle(2.0)
+        if events_received:
+            break
+
+    assert len(events_received) > 0, "Should have received task_completed events"
+    assert events_received[0]['event'] == "task_completed"
+    assert 'agent' in events_received[0]['data']
+    print(f"✓ Received {len(events_received)} runtime events")
+
+    # Test runtime event retrieval
+    all_events = company.get_runtime_events()
+    assert len(all_events) > 0
+    print(f"✓ Runtime events logged: {len(all_events)}")
+
+    # Test filtered events
+    tc_events = company.get_runtime_events(event_type="task_completed")
+    assert len(tc_events) > 0
+    print(f"✓ Filtered task_completed events: {len(tc_events)}")
+
+    # Test event removal
+    company.off("task_completed", on_task_completed)
+    prev_count = len(events_received)
+    company.work_cycle(2.0)
+    assert len(events_received) == prev_count  # no new events after unsubscribe
+    print("✓ Event listener removed successfully")
+    print()
+
+
+def test_beta_testing_enhanced():
+    """Test enhanced beta testing with structured reports"""
+    print("Test 14: Enhanced Beta Testing")
+
+    company = Company()
+    company.start_project("Create a web application for user management")
+
+    # Run enough cycles to complete beta testing
+    for _ in range(100):
+        company.work_cycle(3.0)
+        if company.current_project.progress >= 100:
+            break
+
+    # Get beta test summary
+    summary = company.get_beta_test_summary()
+    assert 'total_bugs' in summary
+    assert 'severity_breakdown' in summary
+    assert 'average_ux_score' in summary
+    assert summary['testers'] == 3
+    print(f"✓ Beta test summary: {summary['total_bugs']} bugs found")
+    print(f"  Severity breakdown: {summary['severity_breakdown']}")
+    print(f"  Average UX score: {summary['average_ux_score']}/5.0")
+    print(f"  Test reports: {summary['total_test_reports']}")
+
+    # Check testers have detailed reports
+    from agents import BetaTesterAgent
+    testers = [a for a in company.agents if isinstance(a, BetaTesterAgent)]
+    for tester in testers:
+        for report in tester.test_reports:
+            assert 'scenarios_tested' in report
+            assert 'ux_score' in report
+            assert 'feedback' in report
+
+    if any(t.test_reports for t in testers):
+        print("✓ Beta test reports contain scenarios, UX scores, and feedback")
+    else:
+        print("✓ Beta testers initialized (no tasks completed in this run)")
+    print()
+
+
+def test_agent_collaboration():
+    """Test agent-to-agent collaboration"""
+    print("Test 15: Agent Collaboration")
+
+    from agents import DeveloperAgent, FinalizerAgent
+
+    dev = DeveloperAgent("Dev A", "Backend")
+    qa = FinalizerAgent("QA B")
+
+    # Test collaboration
+    dev.interact_with(qa, "code review")
+
+    assert len(dev.interactions) == 1
+    assert dev.interactions[0]['with'] == "QA B"
+    assert dev.interactions[0]['context'] == "code review"
+    print("✓ Agent collaboration recorded")
+
+    assert len(qa.interactions) == 1
+    assert qa.interactions[0]['with'] == "Dev A"
+    print("✓ Bidirectional interaction tracked")
+
+    # Collaboration should improve emotional state
+    assert dev.emotional_state.morale > 0.75  # collaboration boosts morale
+    print(f"✓ Collaboration improved morale: {dev.emotional_state.morale:.2f}")
+    print()
+
+
+def test_save_load_with_emotions():
+    """Test save/load preserves emotional states and steering"""
+    print("Test 16: Save/Load with Emotions & Steering")
+
+    company1 = Company()
+    company1.start_project("Test emotional persistence")
+
+    # Add steering and feedback
+    company1.steer("Focus on testing")
+    company1.send_feedback("Good work!", sentiment="positive")
+
+    # Run some work
+    for _ in range(10):
+        company1.work_cycle(1.0)
+
+    # Save emotional states
+    original_morale = company1.agents[0].emotional_state.morale
+    original_emotion = company1.agents[0].emotional_state.current_emotion
+
+    os.makedirs('projects', exist_ok=True)
+    save_path = 'projects/test_emotions_project.json'
+    company1.save_project(save_path)
+    print("✓ Project saved with emotional states")
+
+    # Load and verify
+    company2 = Company()
+    company2.load_project(save_path)
+
+    loaded_morale = company2.agents[0].emotional_state.morale
+    assert abs(loaded_morale - original_morale) < 0.01, \
+        f"Morale should be preserved: {loaded_morale} vs {original_morale}"
+    print(f"✓ Emotional state preserved: morale={loaded_morale:.2f}")
+
+    # Verify steering was preserved
+    assert len(company2.current_project.steering.directives) > 0
+    assert len(company2.current_project.steering.feedback_log) > 0
+    print("✓ Steering directives and feedback preserved")
+    print()
+
+
 def run_all_tests():
     """Run all tests"""
     print("=" * 80)
@@ -231,7 +560,14 @@ def run_all_tests():
         test_file_generation,
         test_save_load_project,
         test_log_export,
-        test_continue_project
+        test_continue_project,
+        test_emotional_intelligence,
+        test_user_steering,
+        test_real_code_generation,
+        test_interactive_runtime,
+        test_beta_testing_enhanced,
+        test_agent_collaboration,
+        test_save_load_with_emotions,
     ]
     
     passed = 0

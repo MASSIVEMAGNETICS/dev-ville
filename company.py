@@ -1,14 +1,15 @@
 """
 Company and Project models for Dev-Ville
+Includes interactive agentic runtime, user steering, and emotional intelligence.
 """
 import json
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 from agents import (
     Agent, CEOAgent, PresidentOfOperationsAgent, DeveloperAgent,
     ResearcherAgent, FinalizerAgent, DeploymentAgent, MarketingAgent,
-    BetaTesterAgent
+    BetaTesterAgent, EmotionalState, UserSteering
 )
 
 
@@ -17,8 +18,8 @@ COMPLETE_PROGRESS = 100  # Progress percentage for completed projects/tasks
 
 
 class Project:
-    """Represents a software project"""
-    
+    """Represents a software project with user steering support"""
+
     def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
@@ -27,7 +28,8 @@ class Project:
         self.tasks = []
         self.progress = 0.0
         self.files = []
-        
+        self.steering = UserSteering()
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert project to dictionary"""
         return {
@@ -37,9 +39,10 @@ class Project:
             'status': self.status,
             'tasks': self.tasks,
             'progress': self.progress,
-            'files': self.files
+            'files': self.files,
+            'steering': self.steering.to_dict()
         }
-        
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'Project':
         """Create project from dictionary"""
@@ -49,6 +52,8 @@ class Project:
         project.tasks = data.get('tasks', [])
         project.progress = data.get('progress', 0.0)
         project.files = data.get('files', [])
+        if 'steering' in data:
+            project.steering = UserSteering.from_dict(data['steering'])
         return project
         
     def calculate_progress(self) -> float:
@@ -70,14 +75,23 @@ class Project:
 
 
 class Company:
-    """Represents the AI software company"""
-    
+    """Represents the AI software company with interactive agentic runtime.
+
+    Features:
+    - User steering: real-time directives that guide agent behavior
+    - Emotional intelligence: agents react to workload, feedback, collaboration
+    - Interactive runtime: event-driven work cycles with feedback loops
+    - Agent-to-agent communication: collaboration between agents
+    """
+
     def __init__(self):
         self.name = "Dev-Ville Inc."
         self.agents: List[Agent] = []
-        self.current_project: Project = None
-        self.time_speed = 1.0  # 1.0 = normal, 2.0 = 2x speed, etc.
+        self.current_project: Optional[Project] = None
+        self.time_speed = 1.0
         self.is_running = False
+        self.event_listeners: Dict[str, List[Callable]] = {}
+        self.runtime_events: List[Dict[str, Any]] = []
         self.initialize_agents()
         
     def initialize_agents(self):
@@ -167,36 +181,54 @@ class Company:
                 task['assigned_to'] = agent.name
                 
     def work_cycle(self, time_delta: float):
-        """Process one work cycle for all agents"""
+        """Process one work cycle for all agents with interactive runtime.
+
+        Applies user steering, triggers agent collaboration, and
+        fires runtime events for the interactive agentic loop.
+        """
         if not self.current_project:
             return
-            
+
         time_delta *= self.time_speed
         completed_tasks = []
-        
+
+        # Apply pending user steering directives
+        self._apply_steering()
+
         for agent in self.agents:
             completed = agent.work(time_delta)
             if completed:
                 completed_tasks.append(completed)
-                
+
                 # Collect generated files from developers
                 if isinstance(agent, DeveloperAgent) and agent.code_files:
                     self.current_project.files.extend(agent.code_files)
                     agent.code_files = []
-                    
+
+                # Trigger collaboration when tasks complete
+                self._trigger_collaboration(agent, completed)
+
+                self._emit_event("task_completed", {
+                    'agent': agent.name,
+                    'task': completed.get('description', ''),
+                })
+
         # Reassign tasks if any agents are idle
-        idle_tasks = [task for task in self.current_project.tasks 
-                     if task.get('progress', 0) < task.get('effort', 100) 
+        idle_tasks = [task for task in self.current_project.tasks
+                     if task.get('progress', 0) < task.get('effort', 100)
                      and not task.get('assigned_to')]
         if idle_tasks:
             self.assign_tasks(idle_tasks)
-            
+
         # Update project progress
         self.current_project.calculate_progress()
-        
+
         # Update project status
         if self.current_project.progress >= COMPLETE_PROGRESS:
             self.current_project.status = "completed"
+            self._emit_event("project_completed", {
+                'project': self.current_project.name
+            })
             
     def get_all_logs(self) -> List[str]:
         """Get logs from all agents"""
@@ -206,10 +238,10 @@ class Company:
         return sorted(all_logs)
         
     def save_project(self, filepath: str):
-        """Save current project to file"""
+        """Save current project to file including emotional states"""
         if not self.current_project:
             return
-            
+
         data = {
             'project': self.current_project.to_dict(),
             'agents': [
@@ -217,28 +249,33 @@ class Company:
                     'name': agent.name,
                     'role': agent.role,
                     'logs': agent.export_logs(),
-                    'status': agent.get_status()
+                    'status': agent.get_status(),
+                    'emotional_state': agent.emotional_state.to_dict()
                 }
                 for agent in self.agents
             ]
         }
-        
+
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
-            
+
     def load_project(self, filepath: str):
-        """Load project from file"""
+        """Load project from file including emotional states"""
         with open(filepath, 'r') as f:
             data = json.load(f)
-            
+
         self.current_project = Project.from_dict(data['project'])
-        
-        # Restore agent logs
+
+        # Restore agent logs and emotional states
         agent_data = {a['name']: a for a in data.get('agents', [])}
         for agent in self.agents:
             if agent.name in agent_data:
                 agent.log = agent_data[agent.name].get('logs', [])
+                if 'emotional_state' in agent_data[agent.name]:
+                    agent.emotional_state = EmotionalState.from_dict(
+                        agent_data[agent.name]['emotional_state']
+                    )
     
     def continue_project(self):
         """Continue working on the current project by reassigning incomplete tasks"""
@@ -305,3 +342,168 @@ class Company:
             
             for log_entry in self.get_all_logs():
                 f.write(log_entry + "\n")
+
+    # --- User Steering ---
+
+    def steer(self, directive: str, priority: str = "normal",
+              target_role: Optional[str] = None) -> Dict[str, Any]:
+        """Add a user steering directive to guide agent behavior at runtime"""
+        if not self.current_project:
+            return {'error': 'No active project'}
+        entry = self.current_project.steering.add_directive(
+            directive, priority, target_role
+        )
+        self._emit_event("user_steering", {
+            'directive': directive,
+            'priority': priority,
+            'target_role': target_role
+        })
+        return entry
+
+    def send_feedback(self, feedback: str, sentiment: str = "neutral",
+                      target_agent: Optional[str] = None) -> Dict[str, Any]:
+        """Send user feedback to agents (positive/neutral/negative)"""
+        if not self.current_project:
+            return {'error': 'No active project'}
+        entry = self.current_project.steering.add_feedback(feedback, sentiment)
+        targets = self.agents
+        if target_agent:
+            targets = [a for a in self.agents if a.name == target_agent]
+        for agent in targets:
+            agent.receive_feedback(feedback, sentiment)
+        self._emit_event("user_feedback", {
+            'feedback': feedback,
+            'sentiment': sentiment,
+            'target': target_agent or 'all'
+        })
+        return entry
+
+    def set_focus(self, areas: List[str]):
+        """Set focus areas that influence agent behavior (e.g. security, performance)"""
+        if not self.current_project:
+            return
+        self.current_project.steering.set_focus(areas)
+        self._emit_event("focus_changed", {'areas': areas})
+
+    def _apply_steering(self):
+        """Apply pending steering directives to relevant agents"""
+        if not self.current_project:
+            return
+        for agent in self.agents:
+            pending = self.current_project.steering.get_pending_directives(agent.role)
+            for directive in pending:
+                agent.apply_steering(directive)
+                self.current_project.steering.mark_applied(directive)
+
+    # --- Agent Collaboration ---
+
+    def _trigger_collaboration(self, completing_agent: Agent,
+                               completed_task: Dict[str, Any]):
+        """Trigger collaboration between agents when tasks are completed"""
+        task_type = completed_task.get('type', '')
+
+        # Developer completes -> notify QA agents
+        if isinstance(completing_agent, DeveloperAgent):
+            for agent in self.agents:
+                if isinstance(agent, FinalizerAgent) and agent.status == "working":
+                    completing_agent.interact_with(agent, f"code handoff: {task_type}")
+                    break
+
+        # QA completes -> notify Beta Testers
+        if isinstance(completing_agent, FinalizerAgent):
+            for agent in self.agents:
+                if isinstance(agent, BetaTesterAgent) and agent.status == "working":
+                    completing_agent.interact_with(agent, f"qa handoff: {task_type}")
+                    break
+
+    # --- Interactive Agentic Runtime ---
+
+    def on(self, event_name: str, callback: Callable):
+        """Register a listener for a runtime event"""
+        if event_name not in self.event_listeners:
+            self.event_listeners[event_name] = []
+        self.event_listeners[event_name].append(callback)
+
+    def off(self, event_name: str, callback: Optional[Callable] = None):
+        """Remove a listener for a runtime event"""
+        if event_name in self.event_listeners:
+            if callback:
+                self.event_listeners[event_name] = [
+                    cb for cb in self.event_listeners[event_name]
+                    if cb != callback
+                ]
+            else:
+                self.event_listeners[event_name] = []
+
+    def _emit_event(self, event_name: str, data: Dict[str, Any]):
+        """Emit a runtime event to all registered listeners"""
+        event = {
+            'event': event_name,
+            'data': data,
+            'timestamp': datetime.now().isoformat()
+        }
+        self.runtime_events.append(event)
+        for callback in self.event_listeners.get(event_name, []):
+            callback(event)
+
+    def get_runtime_events(self, event_type: Optional[str] = None,
+                           limit: int = 50) -> List[Dict[str, Any]]:
+        """Get runtime events, optionally filtered by type"""
+        events = self.runtime_events
+        if event_type:
+            events = [e for e in events if e['event'] == event_type]
+        return events[-limit:]
+
+    def get_team_morale(self) -> Dict[str, Any]:
+        """Get aggregate emotional state of the team"""
+        if not self.agents:
+            return {'average_morale': 0, 'average_stress': 0, 'team_emotion': 'neutral'}
+        total_morale = sum(a.emotional_state.morale for a in self.agents)
+        total_stress = sum(a.emotional_state.stress for a in self.agents)
+        total_confidence = sum(a.emotional_state.confidence for a in self.agents)
+        count = len(self.agents)
+        avg_morale = total_morale / count
+        avg_stress = total_stress / count
+
+        if avg_morale > 0.7 and avg_stress < 0.4:
+            team_emotion = "thriving"
+        elif avg_morale > 0.5:
+            team_emotion = "steady"
+        elif avg_stress > 0.6:
+            team_emotion = "under_pressure"
+        else:
+            team_emotion = "neutral"
+
+        return {
+            'average_morale': round(avg_morale, 2),
+            'average_stress': round(avg_stress, 2),
+            'average_confidence': round(total_confidence / count, 2),
+            'team_emotion': team_emotion,
+            'agent_count': count
+        }
+
+    def get_beta_test_summary(self) -> Dict[str, Any]:
+        """Get a summary of all beta testing results"""
+        testers = [a for a in self.agents if isinstance(a, BetaTesterAgent)]
+        total_bugs = []
+        total_reports = []
+        for tester in testers:
+            total_bugs.extend(tester.bugs_found)
+            total_reports.extend(tester.test_reports)
+
+        severity_counts = {}
+        for bug in total_bugs:
+            sev = bug.get('severity', 'unknown')
+            severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+        avg_ux = 0.0
+        if total_reports:
+            avg_ux = sum(r.get('ux_score', 0) for r in total_reports) / len(total_reports)
+
+        return {
+            'total_bugs': len(total_bugs),
+            'severity_breakdown': severity_counts,
+            'total_test_reports': len(total_reports),
+            'average_ux_score': round(avg_ux, 1),
+            'testers': len(testers)
+        }
