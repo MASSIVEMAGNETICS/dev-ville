@@ -606,8 +606,8 @@ class Company:
             return
         for ticket in self.current_project.tickets:
             if ticket.status == 'in_review':
-                review = supervisor.review_ticket(ticket)
-                if review['passed']:
+                review_result = supervisor.review_ticket(ticket)
+                if review_result['passed']:
                     # If approved and testing is done, mark complete
                     ticket.complete()
                     self.demo_recorder.record_event(

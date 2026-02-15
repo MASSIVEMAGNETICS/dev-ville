@@ -790,7 +790,7 @@ def test_demo_recording():
     dr.stop()
     assert dr.is_recording == False
     dr.record_event('should_not_record', 'This should not be recorded')
-    assert len(dr.events) == 3  # start + test + stop (not the 4th one)
+    assert len(dr.events) == 3  # start event + test event + stop event (4th not recorded because recording stopped)
     print("✓ Events not recorded when stopped")
 
     # Test timeline
