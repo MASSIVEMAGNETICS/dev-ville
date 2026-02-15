@@ -5,7 +5,7 @@ For environments without GUI support
 import sys
 import time
 import os
-from company import Company
+from company import Company, COMPLETE_PROGRESS
 
 
 class DevVilleCLI:
@@ -61,7 +61,7 @@ class DevVilleCLI:
             return
         
         # Check if project is already complete
-        if self.company.current_project.progress >= 100:
+        if self.company.current_project.progress >= COMPLETE_PROGRESS:
             print("\n✓ This project is already complete!")
             print("  You can still export files or logs.")
             return

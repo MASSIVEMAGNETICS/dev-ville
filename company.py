@@ -12,6 +12,10 @@ from agents import (
 )
 
 
+# Constants
+COMPLETE_PROGRESS = 100  # Progress percentage for completed projects/tasks
+
+
 class Project:
     """Represents a software project"""
     
@@ -61,7 +65,7 @@ class Project:
             for task in self.tasks
         )
         
-        self.progress = (completed_work / total_effort) * 100
+        self.progress = (completed_work / total_effort) * COMPLETE_PROGRESS
         return self.progress
 
 
@@ -191,7 +195,7 @@ class Company:
         self.current_project.calculate_progress()
         
         # Update project status
-        if self.current_project.progress >= 100:
+        if self.current_project.progress >= COMPLETE_PROGRESS:
             self.current_project.status = "completed"
             
     def get_all_logs(self) -> List[str]:
@@ -255,7 +259,7 @@ class Company:
         if incomplete_tasks:
             # Clear old assignments first
             for task in incomplete_tasks:
-                task.pop('assigned_to', None)
+                task['assigned_to'] = None
             
             # Reassign tasks
             self.assign_tasks(incomplete_tasks)

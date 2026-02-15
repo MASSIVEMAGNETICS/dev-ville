@@ -7,7 +7,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
 import time
 import os
-from company import Company
+from company import Company, COMPLETE_PROGRESS
 
 
 class DevVilleApp:
@@ -511,7 +511,7 @@ class DevVilleApp:
             return
         
         # Check if project is already complete
-        if self.company.current_project.progress >= 100:
+        if self.company.current_project.progress >= COMPLETE_PROGRESS:
             messagebox.showinfo("Project Complete", 
                               "This project is already complete!\n\n"
                               "You can still export files or logs.")
