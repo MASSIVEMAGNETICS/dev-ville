@@ -1,7 +1,8 @@
 """
 Dev-Ville CLI: Command-Line Interface Version
 For environments without GUI support.
-Includes user steering, emotional intelligence, and interactive runtime.
+Includes user steering, emotional intelligence, interactive runtime,
+advanced ticket system, supervisor oversight, agent rewards, and demo recording.
 """
 import sys
 import time
@@ -20,8 +21,8 @@ class DevVilleCLI:
         """Print application banner"""
         print("=" * 80)
         print(" " * 25 + "DEV-VILLE")
-        print(" " * 15 + "AI Software Company Simulator")
-        print(" " * 10 + "User Steering | Emotional Intelligence | Interactive Runtime")
+        print(" " * 12 + "AI Software Company Emulator")
+        print(" " * 5 + "Production-Grade Artifacts | Tickets | Supervisor | Rewards")
         print("=" * 80)
         print()
         
@@ -44,6 +45,14 @@ class DevVilleCLI:
         print("14. View Team Morale")
         print("15. View Beta Test Summary")
         print("16. Set Focus Areas")
+        print("17. View Research Findings")
+        print("18. View Tickets")
+        print("19. View Supervisor Report")
+        print("20. View Leaderboard & Rewards")
+        print("21. Start Demo Recording")
+        print("22. Stop Demo Recording")
+        print("23. View Demo Timeline")
+        print("24. Export Demo Recording")
         print("0.  Exit")
         print()
         
@@ -310,6 +319,111 @@ class DevVilleCLI:
         self.company.set_focus(areas)
         print(f"✓ Focus areas set: {areas}")
 
+    def view_research(self):
+        """View research findings from researcher agents"""
+        print("\n--- Research Findings ---")
+        summary = self.company.get_research_summary()
+        print(f"  Researchers:            {summary['researchers']}")
+        print(f"  Total Findings:         {summary['total_findings']}")
+        print(f"  Average Confidence:     {summary['average_confidence']}")
+        print(f"  Technologies Evaluated: {', '.join(summary['technologies_evaluated'][:8]) or 'None yet'}")
+        print(f"\n  Top Recommendations:")
+        for i, rec in enumerate(summary['top_recommendations'], 1):
+            print(f"    {i}. {rec}")
+
+        if summary['findings']:
+            print(f"\n  Detailed Findings:")
+            for finding in summary['findings']:
+                print(f"    • {finding['task']}")
+                print(f"      Recommended: {finding['recommended_technology']} "
+                      f"(confidence: {finding['confidence_score']})")
+                print(f"      Evaluated: {', '.join(finding['technologies_evaluated'])}")
+        elif summary['total_findings'] == 0:
+            print("\n  No research findings yet. Run simulation to generate findings.")
+
+    def view_tickets(self):
+        """View project tickets"""
+        if not self.company.current_project:
+            print("\n✗ No active project")
+            return
+
+        print("\n--- Project Tickets ---")
+        summary = self.company.get_ticket_summary()
+        print(f"  Total Tickets: {summary['total']}")
+        print(f"  By Status: {summary['by_status']}")
+        print()
+
+        tickets = self.company.get_tickets()
+        if not tickets:
+            print("  No tickets yet.")
+            return
+
+        print(f"  {'ID':<5} {'Status':<15} {'Priority':<10} {'Title':<35} {'Assigned To':<20}")
+        print("  " + "-" * 85)
+        for t in tickets:
+            print(f"  {t['id']:<5} {t['status']:<15} {t['priority']:<10} "
+                  f"{t['title'][:35]:<35} {t.get('assigned_to') or 'Unassigned':<20}")
+
+    def view_supervisor_report(self):
+        """View supervisor quality report"""
+        print("\n--- Supervisor Report ---")
+        report = self.company.get_supervisor_report()
+        print(f"  Supervisors:      {report['supervisors']}")
+        print(f"  Total Reviews:    {report['total_reviews']}")
+        print(f"  Passed:           {report['total_passed']}")
+        print(f"  Rejected:         {report['total_rejected']}")
+        print(f"  Approval Rate:    {report['approval_rate']:.0%}")
+        print(f"  Open Escalations: {report['open_escalations']}")
+
+    def view_leaderboard(self):
+        """View agent leaderboard and rewards"""
+        print("\n--- Agent Leaderboard & Rewards ---")
+        leaderboard = self.company.get_leaderboard()
+        if not leaderboard:
+            print("  No rewards recorded yet. Run simulation to earn rewards.")
+            return
+
+        print(f"  {'Rank':<5} {'Agent':<25} {'Points':<10} {'Tasks':<8} {'Achievements':<14} {'Streak':<8}")
+        print("  " + "-" * 70)
+        for i, entry in enumerate(leaderboard, 1):
+            print(f"  {i:<5} {entry['agent']:<25} {entry['total_points']:<10} "
+                  f"{entry['tasks_completed']:<8} {entry['achievements']:<14} {entry['current_streak']:<8}")
+
+    def start_demo_recording(self):
+        """Start demo recording"""
+        self.company.start_demo_recording()
+        print("\n✓ Demo recording started. Events will be captured during simulation.")
+
+    def stop_demo_recording(self):
+        """Stop demo recording"""
+        self.company.stop_demo_recording()
+        timeline = self.company.get_demo_timeline()
+        print(f"\n✓ Demo recording stopped. {len(timeline)} events captured.")
+
+    def view_demo_timeline(self):
+        """View demo recording timeline"""
+        print("\n--- Demo Timeline ---")
+        timeline = self.company.get_demo_timeline()
+        if not timeline:
+            print("  No events recorded. Start a demo recording first.")
+            return
+
+        for event in timeline[-30:]:
+            print(f"  [{event['timestamp']}] {event['type']}: {event['message']}")
+
+        if len(timeline) > 30:
+            print(f"\n  ... showing last 30 of {len(timeline)} events")
+
+    def export_demo(self):
+        """Export demo recording"""
+        export_dir = input("Enter export directory (default: exports): ").strip()
+        if not export_dir:
+            export_dir = "exports"
+
+        filepath = os.path.join(export_dir, "demo_recording.json")
+        self.company.export_demo(filepath)
+        print(f"✓ Demo recording exported to {filepath}")
+
     def run(self):
         """Main run loop"""
         self.print_banner()
@@ -351,6 +465,22 @@ class DevVilleCLI:
                     self.view_beta_summary()
                 elif choice == '16':
                     self.set_focus_areas()
+                elif choice == '17':
+                    self.view_research()
+                elif choice == '18':
+                    self.view_tickets()
+                elif choice == '19':
+                    self.view_supervisor_report()
+                elif choice == '20':
+                    self.view_leaderboard()
+                elif choice == '21':
+                    self.start_demo_recording()
+                elif choice == '22':
+                    self.stop_demo_recording()
+                elif choice == '23':
+                    self.view_demo_timeline()
+                elif choice == '24':
+                    self.export_demo()
                 elif choice == '0':
                     print("\nThank you for using Dev-Ville!")
                     self.running = False

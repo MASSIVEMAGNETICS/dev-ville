@@ -9,7 +9,8 @@ from datetime import datetime
 from agents import (
     Agent, CEOAgent, PresidentOfOperationsAgent, DeveloperAgent,
     ResearcherAgent, FinalizerAgent, DeploymentAgent, MarketingAgent,
-    BetaTesterAgent, EmotionalState, UserSteering
+    BetaTesterAgent, EmotionalState, UserSteering,
+    SupervisorAgent, RewardSystem, Ticket, DemoRecorder
 )
 
 
@@ -29,6 +30,7 @@ class Project:
         self.progress = 0.0
         self.files = []
         self.steering = UserSteering()
+        self.tickets: List[Ticket] = []
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert project to dictionary"""
@@ -40,7 +42,8 @@ class Project:
             'tasks': self.tasks,
             'progress': self.progress,
             'files': self.files,
-            'steering': self.steering.to_dict()
+            'steering': self.steering.to_dict(),
+            'tickets': [t.to_dict() for t in self.tickets]
         }
 
     @staticmethod
@@ -54,6 +57,7 @@ class Project:
         project.files = data.get('files', [])
         if 'steering' in data:
             project.steering = UserSteering.from_dict(data['steering'])
+        project.tickets = [Ticket.from_dict(t) for t in data.get('tickets', [])]
         return project
         
     def calculate_progress(self) -> float:
@@ -92,6 +96,8 @@ class Company:
         self.is_running = False
         self.event_listeners: Dict[str, List[Callable]] = {}
         self.runtime_events: List[Dict[str, Any]] = []
+        self.reward_system = RewardSystem()
+        self.demo_recorder = DemoRecorder()
         self.initialize_agents()
         
     def initialize_agents(self):
@@ -130,6 +136,10 @@ class Company:
         self.agents.append(MarketingAgent("Sophie Laurent"))
         self.agents.append(MarketingAgent("Daniel Cooper"))
         
+        # Supervisor team
+        self.agents.append(SupervisorAgent("James O'Brien"))
+        self.agents.append(SupervisorAgent("Natasha Volkov"))
+        
     def start_project(self, directive: str) -> Project:
         """Start a new project based on user directive"""
         # CEO analyzes the directive
@@ -149,7 +159,27 @@ class Company:
                 tasks = president.create_work_plan(project_plan)
                 self.current_project.tasks = tasks
                 self.assign_tasks(tasks)
-                
+
+                # Create tickets for all tasks
+                for task in tasks:
+                    ticket = Ticket(
+                        title=task.get('description', 'Untitled'),
+                        description=f"Task: {task.get('description', '')} (type: {task.get('type', '')})",
+                        ticket_type=task.get('type', 'general'),
+                        priority='high' if task.get('type') in ('backend', 'frontend') else 'normal',
+                        assigned_to=task.get('assigned_to')
+                    )
+                    if task.get('assigned_to'):
+                        ticket.assign(task['assigned_to'])
+                    self.current_project.tickets.append(ticket)
+
+            # Record demo event
+            self.demo_recorder.record_event(
+                'project_started',
+                f'Project started: {directive}',
+                {'project_name': self.current_project.name}
+            )
+
         return self.current_project
         
     def assign_tasks(self, tasks: List[Dict[str, Any]]):
@@ -183,7 +213,8 @@ class Company:
     def work_cycle(self, time_delta: float):
         """Process one work cycle for all agents with interactive runtime.
 
-        Applies user steering, triggers agent collaboration, and
+        Applies user steering, triggers agent collaboration, processes
+        ticket lifecycle, rewards agents, supervisor reviews, and
         fires runtime events for the interactive agentic loop.
         """
         if not self.current_project:
@@ -196,6 +227,11 @@ class Company:
         self._apply_steering()
 
         for agent in self.agents:
+            if isinstance(agent, SupervisorAgent):
+                # Supervisors review tickets instead of normal work
+                self._supervisor_review_cycle(agent)
+                continue
+
             completed = agent.work(time_delta)
             if completed:
                 completed_tasks.append(completed)
@@ -205,6 +241,20 @@ class Company:
                     self.current_project.files.extend(agent.code_files)
                     agent.code_files = []
 
+                # Reward the agent
+                new_achievements = self.reward_system.record_task_completion(agent.name)
+                if new_achievements:
+                    for ach in new_achievements:
+                        agent.emotional_state.update("positive_feedback")
+                        agent.log_activity(f"Achievement unlocked: {ach['name']} (+{ach['points']} pts)")
+                        self.demo_recorder.record_event(
+                            'achievement', f"{agent.name} earned '{ach['name']}'",
+                            {'agent': agent.name, 'achievement': ach['name']}
+                        )
+
+                # Update associated ticket
+                self._advance_ticket(agent.name, completed)
+
                 # Trigger collaboration when tasks complete
                 self._trigger_collaboration(agent, completed)
 
@@ -212,6 +262,21 @@ class Company:
                     'agent': agent.name,
                     'task': completed.get('description', ''),
                 })
+
+                self.demo_recorder.record_event(
+                    'task_completed',
+                    f"{agent.name} completed: {completed.get('description', '')}",
+                    {'agent': agent.name, 'task_type': completed.get('type', '')}
+                )
+
+        # Check for special achievements based on agent state
+        for agent in self.agents:
+            if agent.emotional_state.morale > 0.9:
+                self.reward_system.award_special(agent.name, 'high_morale')
+            if agent.emotional_state.stress < 0.2:
+                self.reward_system.award_special(agent.name, 'low_stress')
+            if len(agent.interactions) >= 3:
+                self.reward_system.award_special(agent.name, 'collaborator')
 
         # Reassign tasks if any agents are idle
         idle_tasks = [task for task in self.current_project.tasks
@@ -229,6 +294,11 @@ class Company:
             self._emit_event("project_completed", {
                 'project': self.current_project.name
             })
+            self.demo_recorder.record_event(
+                'project_completed',
+                f"Project completed: {self.current_project.name}",
+                {'progress': self.current_project.progress}
+            )
             
     def get_all_logs(self) -> List[str]:
         """Get logs from all agents"""
@@ -238,7 +308,7 @@ class Company:
         return sorted(all_logs)
         
     def save_project(self, filepath: str):
-        """Save current project to file including emotional states"""
+        """Save current project to file including emotional states, rewards, and recordings"""
         if not self.current_project:
             return
 
@@ -253,7 +323,9 @@ class Company:
                     'emotional_state': agent.emotional_state.to_dict()
                 }
                 for agent in self.agents
-            ]
+            ],
+            'reward_system': self.reward_system.to_dict(),
+            'demo_recorder': self.demo_recorder.to_dict()
         }
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -261,7 +333,7 @@ class Company:
             json.dump(data, f, indent=2)
 
     def load_project(self, filepath: str):
-        """Load project from file including emotional states"""
+        """Load project from file including emotional states, rewards, and recordings"""
         with open(filepath, 'r') as f:
             data = json.load(f)
 
@@ -276,6 +348,14 @@ class Company:
                     agent.emotional_state = EmotionalState.from_dict(
                         agent_data[agent.name]['emotional_state']
                     )
+
+        # Restore reward system
+        if 'reward_system' in data:
+            self.reward_system = RewardSystem.from_dict(data['reward_system'])
+
+        # Restore demo recorder
+        if 'demo_recorder' in data:
+            self.demo_recorder = DemoRecorder.from_dict(data['demo_recorder'])
     
     def continue_project(self):
         """Continue working on the current project by reassigning incomplete tasks"""
@@ -507,3 +587,139 @@ class Company:
             'average_ux_score': round(avg_ux, 1),
             'testers': len(testers)
         }
+
+    # --- Ticket System ---
+
+    def _advance_ticket(self, agent_name: str, completed_task: Dict[str, Any]):
+        """Advance a ticket through the lifecycle when a task completes"""
+        if not self.current_project:
+            return
+        task_desc = completed_task.get('description', '')
+        for ticket in self.current_project.tickets:
+            if ticket.title == task_desc and ticket.status == 'in_progress':
+                ticket.submit_for_review()
+                break
+
+    def _supervisor_review_cycle(self, supervisor: 'SupervisorAgent'):
+        """Have a supervisor review tickets that are in_review status"""
+        if not self.current_project:
+            return
+        for ticket in self.current_project.tickets:
+            if ticket.status == 'in_review':
+                review = supervisor.review_ticket(ticket)
+                if review['passed']:
+                    # If approved and testing is done, mark complete
+                    ticket.complete()
+                    self.demo_recorder.record_event(
+                        'ticket_completed',
+                        f"Ticket #{ticket.id} '{ticket.title}' completed",
+                        {'ticket_id': ticket.id, 'reviewer': supervisor.name}
+                    )
+                break  # One review per cycle
+
+    def get_tickets(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get project tickets, optionally filtered by status"""
+        if not self.current_project:
+            return []
+        tickets = self.current_project.tickets
+        if status:
+            tickets = [t for t in tickets if t.status == status]
+        return [t.to_dict() for t in tickets]
+
+    def get_ticket_summary(self) -> Dict[str, Any]:
+        """Get summary of all tickets by status"""
+        if not self.current_project:
+            return {'total': 0, 'by_status': {}}
+        tickets = self.current_project.tickets
+        by_status: Dict[str, int] = {}
+        for t in tickets:
+            by_status[t.status] = by_status.get(t.status, 0) + 1
+        return {
+            'total': len(tickets),
+            'by_status': by_status
+        }
+
+    # --- Research ---
+
+    def get_research_summary(self) -> Dict[str, Any]:
+        """Get a summary of all research findings from researcher agents"""
+        researchers = [a for a in self.agents if isinstance(a, ResearcherAgent)]
+        all_findings = []
+        for researcher in researchers:
+            all_findings.extend(researcher.research_findings)
+
+        all_techs = []
+        for f in all_findings:
+            all_techs.extend(f.get('technologies_evaluated', []))
+        unique_techs = list(set(all_techs))
+
+        all_recommendations = []
+        for f in all_findings:
+            all_recommendations.extend(f.get('recommendations', []))
+        unique_recs = list(set(all_recommendations))
+
+        avg_confidence = 0.0
+        if all_findings:
+            avg_confidence = sum(
+                f.get('confidence_score', 0) for f in all_findings
+            ) / len(all_findings)
+
+        return {
+            'total_findings': len(all_findings),
+            'researchers': len(researchers),
+            'technologies_evaluated': unique_techs,
+            'top_recommendations': unique_recs[:5],
+            'average_confidence': round(avg_confidence, 2),
+            'findings': all_findings
+        }
+
+    # --- Rewards ---
+
+    def get_leaderboard(self) -> List[Dict[str, Any]]:
+        """Get the agent reward leaderboard"""
+        return self.reward_system.get_leaderboard()
+
+    def get_agent_rewards(self, agent_name: str) -> Dict[str, Any]:
+        """Get reward details for a specific agent"""
+        return self.reward_system.get_agent_rewards(agent_name)
+
+    # --- Supervisor ---
+
+    def get_supervisor_report(self) -> Dict[str, Any]:
+        """Get quality report from supervisors"""
+        supervisors = [a for a in self.agents if isinstance(a, SupervisorAgent)]
+        total_reviews = 0
+        total_passed = 0
+        all_escalations = []
+        for s in supervisors:
+            report = s.get_quality_report()
+            total_reviews += report['total_reviews']
+            total_passed += report['passed']
+            all_escalations.extend(s.escalations)
+
+        return {
+            'supervisors': len(supervisors),
+            'total_reviews': total_reviews,
+            'total_passed': total_passed,
+            'total_rejected': total_reviews - total_passed,
+            'approval_rate': round(total_passed / total_reviews, 2) if total_reviews > 0 else 0.0,
+            'open_escalations': sum(1 for e in all_escalations if not e.get('resolved'))
+        }
+
+    # --- Demo Recording ---
+
+    def start_demo_recording(self):
+        """Start recording demo events"""
+        self.demo_recorder.start()
+
+    def stop_demo_recording(self):
+        """Stop recording demo events"""
+        self.demo_recorder.stop()
+
+    def get_demo_timeline(self) -> List[Dict[str, Any]]:
+        """Get the demo recording timeline"""
+        return self.demo_recorder.get_timeline()
+
+    def export_demo(self, filepath: str):
+        """Export demo recording to a file"""
+        self.demo_recorder.export(filepath)
