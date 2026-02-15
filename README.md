@@ -18,6 +18,7 @@ An AI agent-based complete end-to-end software company simulator that runs on yo
 
 - **Project Management**:
   - Create, save, and open projects
+  - Continue working on saved projects
   - Export all employee logs
   - Export all generated files
   - Real-time progress tracking
@@ -54,7 +55,9 @@ python devville.py
 2. **Give Directives**: Type your project requirements in the input box
 3. **Control Time**: Use Play/Pause/Fast-Forward buttons
 4. **Monitor Progress**: Watch agents work and progress bars update
-5. **Export Results**: File → Export Files to get your generated software
+5. **Save Progress**: File → Save Project to save your work
+6. **Continue Later**: File → Open Project, then File → Continue Project to resume work
+7. **Export Results**: File → Export Files to get your generated software
 
 ## Architecture
 

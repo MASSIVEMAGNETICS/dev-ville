@@ -5,7 +5,7 @@ For environments without GUI support
 import sys
 import time
 import os
-from company import Company
+from company import Company, COMPLETE_PROGRESS
 
 
 class DevVilleCLI:
@@ -27,15 +27,16 @@ class DevVilleCLI:
         """Print main menu"""
         print("\nMain Menu:")
         print("1. Start New Project")
-        print("2. View Agents Status")
-        print("3. View Activity Log")
-        print("4. View Tasks")
-        print("5. View Generated Files")
-        print("6. Run Simulation (10 cycles)")
-        print("7. Save Project")
-        print("8. Load Project")
-        print("9. Export Files")
-        print("10. Export Logs")
+        print("2. Continue Project")
+        print("3. View Agents Status")
+        print("4. View Activity Log")
+        print("5. View Tasks")
+        print("6. View Generated Files")
+        print("7. Run Simulation (10 cycles)")
+        print("8. Save Project")
+        print("9. Load Project")
+        print("10. Export Files")
+        print("11. Export Logs")
         print("0. Exit")
         print()
         
@@ -52,6 +53,32 @@ class DevVilleCLI:
             print(f"  Tasks created: {len(self.company.current_project.tasks)}")
         else:
             print("✗ No directive provided")
+    
+    def continue_project(self):
+        """Continue working on the current project"""
+        if not self.company.current_project:
+            print("\n✗ No active project. Please load or start a project first.")
+            return
+        
+        # Check if project is already complete
+        if self.company.current_project.progress >= COMPLETE_PROGRESS:
+            print("\n✓ This project is already complete!")
+            print("  You can still export files or logs.")
+            return
+        
+        # Continue the project
+        result = self.company.continue_project()
+        
+        if result:
+            incomplete_count = sum(
+                1 for task in self.company.current_project.tasks 
+                if task.get('progress', 0) < task.get('effort', 100)
+            )
+            print(f"\n✓ Project continued!")
+            print(f"  {incomplete_count} incomplete task(s) reassigned to agents.")
+            print(f"  Use option 7 to run simulation and make progress.")
+        else:
+            print("\n✗ No incomplete tasks found to continue")
             
     def view_agents(self):
         """View agents status"""
@@ -150,6 +177,19 @@ class DevVilleCLI:
         try:
             self.company.load_project(filepath)
             print(f"✓ Project loaded from {filepath}")
+            
+            # Check if project has incomplete tasks
+            if self.company.current_project:
+                incomplete_tasks = [
+                    task for task in self.company.current_project.tasks 
+                    if task.get('progress', 0) < task.get('effort', 100)
+                ]
+                
+                if incomplete_tasks:
+                    print(f"  This project has {len(incomplete_tasks)} incomplete task(s).")
+                    print(f"  Use option 2 (Continue Project) to resume work.")
+                else:
+                    print(f"  This project is complete!")
         except FileNotFoundError:
             print(f"✗ File not found: {filepath}")
         except Exception as e:
@@ -189,22 +229,24 @@ class DevVilleCLI:
                 if choice == '1':
                     self.start_project()
                 elif choice == '2':
-                    self.view_agents()
+                    self.continue_project()
                 elif choice == '3':
-                    self.view_log()
+                    self.view_agents()
                 elif choice == '4':
-                    self.view_tasks()
+                    self.view_log()
                 elif choice == '5':
-                    self.view_files()
+                    self.view_tasks()
                 elif choice == '6':
-                    self.run_simulation()
+                    self.view_files()
                 elif choice == '7':
-                    self.save_project()
+                    self.run_simulation()
                 elif choice == '8':
-                    self.load_project()
+                    self.save_project()
                 elif choice == '9':
-                    self.export_files()
+                    self.load_project()
                 elif choice == '10':
+                    self.export_files()
+                elif choice == '11':
                     self.export_logs()
                 elif choice == '0':
                     print("\nThank you for using Dev-Ville!")

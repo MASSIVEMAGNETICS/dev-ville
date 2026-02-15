@@ -80,18 +80,36 @@ python test_devville.py
 - Choose location and filename
 
 **CLI**: 
-- Select option 7 "Save Project"
+- Select option 8 "Save Project"
 - Enter filename (default: project.json)
 
-### 5. Export Results
+### 5. Resume Work on a Saved Project
+
+**GUI**:
+- Click "File" → "Open Project"
+- Select your saved project file
+- The system will notify you if there are incomplete tasks
+- Click "File" → "Continue Project" (or use the Continue button)
+- Tasks will be reassigned to agents
+- Click "▶ Play" to resume work
+
+**CLI**:
+- Select option 9 "Load Project"
+- Enter the project filename
+- Select option 2 "Continue Project" to resume work
+- Select option 7 "Run Simulation" to make progress
+
+**Note**: The Continue functionality ensures all incomplete tasks are properly reassigned to idle agents, allowing you to seamlessly resume work from where you left off.
+
+### 6. Export Results
 
 **GUI**:
 - "File" → "Export All Files" - Get all generated code
 - "File" → "Export All Logs" - Get complete activity logs
 
 **CLI**:
-- Option 9: Export Files
-- Option 10: Export Logs
+- Option 10: Export Files
+- Option 11: Export Logs
 
 ## Understanding Your Company
 
@@ -136,7 +154,33 @@ The CEO will analyze your directive and determine the project type:
 
 4. **Save Often**: Save your project periodically, especially during long simulations
 
-5. **Export Files**: Use the export feature to get your generated code in a clean directory structure
+5. **Use Continue**: When resuming a saved project, always use the Continue functionality
+   - This ensures tasks are properly reassigned to agents
+   - Without continuing, agents won't have work assigned
+
+6. **Export Files**: Use the export feature to get your generated code in a clean directory structure
+
+## Common Workflows
+
+### Working Across Multiple Sessions
+
+1. Start a new project with your directive
+2. Click Play and let it run for a while
+3. Pause the simulation
+4. Save your project (File → Save Project)
+5. Close the application
+6. Later, reopen the application
+7. Load your project (File → Open Project)
+8. Continue the project (File → Continue Project or Continue button)
+9. Click Play to resume work
+
+### Experimenting with Different Approaches
+
+1. Start a project and run it for a while
+2. Save the project
+3. Continue working and try different time speeds
+4. If you want to try a different approach, close and reload the saved version
+5. Continue from the saved point with different settings
 
 ## Project Lifecycle
 

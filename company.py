@@ -12,6 +12,10 @@ from agents import (
 )
 
 
+# Constants
+COMPLETE_PROGRESS = 100  # Progress percentage for completed projects/tasks
+
+
 class Project:
     """Represents a software project"""
     
@@ -61,7 +65,7 @@ class Project:
             for task in self.tasks
         )
         
-        self.progress = (completed_work / total_effort) * 100
+        self.progress = (completed_work / total_effort) * COMPLETE_PROGRESS
         return self.progress
 
 
@@ -191,7 +195,7 @@ class Company:
         self.current_project.calculate_progress()
         
         # Update project status
-        if self.current_project.progress >= 100:
+        if self.current_project.progress >= COMPLETE_PROGRESS:
             self.current_project.status = "completed"
             
     def get_all_logs(self) -> List[str]:
@@ -235,6 +239,39 @@ class Company:
         for agent in self.agents:
             if agent.name in agent_data:
                 agent.log = agent_data[agent.name].get('logs', [])
+    
+    def continue_project(self):
+        """Continue working on the current project by reassigning incomplete tasks"""
+        if not self.current_project:
+            return False
+        
+        # Reset all agents to idle state if not already
+        for agent in self.agents:
+            if not agent.current_task and not agent.task_queue:
+                agent.status = "idle"
+        
+        # Find incomplete tasks and reassign them
+        incomplete_tasks = [
+            task for task in self.current_project.tasks 
+            if task.get('progress', 0) < task.get('effort', 100)
+        ]
+        
+        if incomplete_tasks:
+            # Clear old assignments first
+            for task in incomplete_tasks:
+                task['assigned_to'] = None
+            
+            # Reassign tasks
+            self.assign_tasks(incomplete_tasks)
+            
+            # Log that we're continuing
+            for agent in self.agents:
+                if agent.current_task or agent.task_queue:
+                    agent.log_activity(f"Continuing work on project: {self.current_project.name}")
+            
+            return True
+        
+        return False
                 
     def export_files(self, export_dir: str):
         """Export all project files"""
