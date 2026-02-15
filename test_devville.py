@@ -533,8 +533,9 @@ def test_save_load_with_emotions():
     company2.load_project(save_path)
 
     loaded_morale = company2.agents[0].emotional_state.morale
-    assert abs(loaded_morale - original_morale) < 0.01, \
+    assert (abs(loaded_morale - original_morale) < 0.01), (
         f"Morale should be preserved: {loaded_morale} vs {original_morale}"
+    )
     print(f"✓ Emotional state preserved: morale={loaded_morale:.2f}")
 
     # Verify steering was preserved

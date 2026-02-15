@@ -305,28 +305,28 @@ class CEOAgent(Agent):
         """Analyze user directive with intelligent feature detection"""
         self.log_activity(f"Analyzing directive: {directive}")
 
-        lower = directive.lower()
+        directive_lower = directive.lower()
 
         # Detect project type
         project_type = "web_application"
-        if "mobile" in lower or "app" in lower:
+        if "mobile" in directive_lower or "app" in directive_lower:
             project_type = "mobile_application"
-        elif "api" in lower or "backend" in lower:
+        elif "api" in directive_lower or "backend" in directive_lower:
             project_type = "api_service"
-        elif "website" in lower or "web" in lower:
+        elif "website" in directive_lower or "web" in directive_lower:
             project_type = "website"
 
         # Detect required features
         detected_features = []
         for feature, keywords in self._FEATURE_KEYWORDS.items():
-            if any(kw in lower for kw in keywords):
+            if any(kw in directive_lower for kw in keywords):
                 detected_features.append(feature)
 
         # Detect priority
         priority = "high"
-        if any(word in lower for word in ["urgent", "asap", "critical", "immediately"]):
+        if any(word in directive_lower for word in ["urgent", "asap", "critical", "immediately"]):
             priority = "critical"
-        elif any(word in lower for word in ["low priority", "when possible", "nice to have"]):
+        elif any(word in directive_lower for word in ["low priority", "when possible", "nice to have"]):
             priority = "low"
 
         self.log_activity(

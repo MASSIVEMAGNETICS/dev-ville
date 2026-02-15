@@ -273,7 +273,7 @@ class DevVilleCLI:
         print(f"  Team Emotion:      {morale['team_emotion']}")
         print(f"  Average Morale:    {morale['average_morale']:.2f}")
         print(f"  Average Stress:    {morale['average_stress']:.2f}")
-        print(f"  Average Confidence:{morale['average_confidence']:.2f}")
+        print(f"  Average Confidence: {morale['average_confidence']:.2f}")
         print(f"  Agent Count:       {morale['agent_count']}")
 
         print("\n  Individual States:")
