@@ -1,6 +1,6 @@
 """
-Dev-Ville: AI Software Company Simulator
-Main GUI Application
+Dev-Ville: AI Software Company Emulator
+Main GUI Application — Production-Grade Artifact Generation
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
@@ -15,7 +15,7 @@ class DevVilleApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Dev-Ville - AI Software Company Simulator")
+        self.root.title("Dev-Ville - AI Software Company Emulator")
         self.root.geometry("1200x800")
         
         self.company = Company()
@@ -158,6 +158,26 @@ class DevVilleApp:
         files_frame = ttk.Frame(notebook)
         notebook.add(files_frame, text="Generated Files")
         self.create_files_view(files_frame)
+
+        # Research tab
+        research_frame = ttk.Frame(notebook)
+        notebook.add(research_frame, text="Research")
+        self.create_research_view(research_frame)
+
+        # Tickets tab
+        tickets_frame = ttk.Frame(notebook)
+        notebook.add(tickets_frame, text="Tickets")
+        self.create_tickets_view(tickets_frame)
+
+        # Rewards tab
+        rewards_frame = ttk.Frame(notebook)
+        notebook.add(rewards_frame, text="Rewards")
+        self.create_rewards_view(rewards_frame)
+
+        # Supervisor tab
+        supervisor_frame = ttk.Frame(notebook)
+        notebook.add(supervisor_frame, text="Supervisor")
+        self.create_supervisor_view(supervisor_frame)
         
     def create_agents_view(self, parent):
         """Create agents view"""
@@ -244,6 +264,70 @@ class DevVilleApp:
         
         # Double-click to view file
         self.files_tree.bind('<Double-1>', self.view_file)
+
+    def create_research_view(self, parent):
+        """Create research findings view"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+
+        self.research_text = scrolledtext.ScrolledText(parent, wrap=tk.WORD, height=20)
+        self.research_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
+
+    def create_tickets_view(self, parent):
+        """Create tickets view"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+
+        columns = ('ID', 'Status', 'Priority', 'Title', 'Assigned To', 'Reviewed By')
+        self.tickets_tree = ttk.Treeview(parent, columns=columns, show='headings', height=15)
+
+        for col in columns:
+            self.tickets_tree.heading(col, text=col)
+            if col == 'ID':
+                self.tickets_tree.column(col, width=50)
+            elif col == 'Title':
+                self.tickets_tree.column(col, width=300)
+            elif col in ('Status', 'Priority'):
+                self.tickets_tree.column(col, width=100)
+            else:
+                self.tickets_tree.column(col, width=150)
+
+        self.tickets_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.tickets_tree.yview)
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.tickets_tree.configure(yscrollcommand=scrollbar.set)
+
+    def create_rewards_view(self, parent):
+        """Create rewards/leaderboard view"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+
+        columns = ('Rank', 'Agent', 'Points', 'Tasks', 'Achievements', 'Streak')
+        self.rewards_tree = ttk.Treeview(parent, columns=columns, show='headings', height=15)
+
+        for col in columns:
+            self.rewards_tree.heading(col, text=col)
+            if col == 'Rank':
+                self.rewards_tree.column(col, width=50)
+            elif col == 'Agent':
+                self.rewards_tree.column(col, width=200)
+            else:
+                self.rewards_tree.column(col, width=100)
+
+        self.rewards_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.rewards_tree.yview)
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.rewards_tree.configure(yscrollcommand=scrollbar.set)
+
+    def create_supervisor_view(self, parent):
+        """Create supervisor report view"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+
+        self.supervisor_text = scrolledtext.ScrolledText(parent, wrap=tk.WORD, height=20)
+        self.supervisor_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
         
     def create_status_bar(self, parent):
         """Create status bar"""
@@ -341,6 +425,10 @@ class DevVilleApp:
         self.update_tasks_view()
         self.update_files_view()
         self.update_progress()
+        self.update_research_view()
+        self.update_tickets_view()
+        self.update_rewards_view()
+        self.update_supervisor_view()
         
     def update_agents_view(self):
         """Update agents view"""
@@ -426,6 +514,84 @@ class DevVilleApp:
             self.overall_progress['value'] = 0
             self.progress_label.config(text="0%")
             self.project_info_label.config(text="No active project")
+
+    def update_research_view(self):
+        """Update research findings view"""
+        self.research_text.delete('1.0', tk.END)
+        summary = self.company.get_research_summary()
+
+        self.research_text.insert(tk.END, "=== Research Summary ===\n\n")
+        self.research_text.insert(tk.END, f"Researchers: {summary['researchers']}\n")
+        self.research_text.insert(tk.END, f"Total Findings: {summary['total_findings']}\n")
+        self.research_text.insert(tk.END, f"Average Confidence: {summary['average_confidence']}\n")
+        self.research_text.insert(tk.END, f"Technologies Evaluated: {', '.join(summary['technologies_evaluated'][:8]) or 'None yet'}\n\n")
+
+        if summary['top_recommendations']:
+            self.research_text.insert(tk.END, "Top Recommendations:\n")
+            for i, rec in enumerate(summary['top_recommendations'], 1):
+                self.research_text.insert(tk.END, f"  {i}. {rec}\n")
+            self.research_text.insert(tk.END, "\n")
+
+        if summary['findings']:
+            self.research_text.insert(tk.END, "=== Detailed Findings ===\n\n")
+            for finding in summary['findings']:
+                self.research_text.insert(tk.END, f"• {finding['task']}\n")
+                self.research_text.insert(tk.END, f"  Recommended: {finding['recommended_technology']} "
+                                                   f"(confidence: {finding['confidence_score']})\n")
+                self.research_text.insert(tk.END, f"  Evaluated: {', '.join(finding['technologies_evaluated'])}\n")
+                self.research_text.insert(tk.END, f"  Recommendations: {', '.join(finding.get('recommendations', []))}\n\n")
+
+    def update_tickets_view(self):
+        """Update tickets view"""
+        for item in self.tickets_tree.get_children():
+            self.tickets_tree.delete(item)
+
+        tickets = self.company.get_tickets()
+        for t in tickets:
+            self.tickets_tree.insert('', tk.END, values=(
+                t.get('id', ''),
+                t.get('status', ''),
+                t.get('priority', ''),
+                t.get('title', ''),
+                t.get('assigned_to', 'Unassigned') or 'Unassigned',
+                t.get('reviewed_by', '') or ''
+            ))
+
+    def update_rewards_view(self):
+        """Update rewards leaderboard view"""
+        for item in self.rewards_tree.get_children():
+            self.rewards_tree.delete(item)
+
+        leaderboard = self.company.get_leaderboard()
+        for i, entry in enumerate(leaderboard, 1):
+            self.rewards_tree.insert('', tk.END, values=(
+                i,
+                entry['agent'],
+                entry['total_points'],
+                entry['tasks_completed'],
+                entry['achievements'],
+                entry['current_streak']
+            ))
+
+    def update_supervisor_view(self):
+        """Update supervisor report view"""
+        self.supervisor_text.delete('1.0', tk.END)
+        report = self.company.get_supervisor_report()
+
+        self.supervisor_text.insert(tk.END, "=== Supervisor Quality Report ===\n\n")
+        self.supervisor_text.insert(tk.END, f"Supervisors:      {report['supervisors']}\n")
+        self.supervisor_text.insert(tk.END, f"Total Reviews:    {report['total_reviews']}\n")
+        self.supervisor_text.insert(tk.END, f"Passed:           {report['total_passed']}\n")
+        self.supervisor_text.insert(tk.END, f"Rejected:         {report['total_rejected']}\n")
+        self.supervisor_text.insert(tk.END, f"Approval Rate:    {report['approval_rate']:.0%}\n")
+        self.supervisor_text.insert(tk.END, f"Open Escalations: {report['open_escalations']}\n\n")
+
+        # Ticket summary
+        ticket_summary = self.company.get_ticket_summary()
+        self.supervisor_text.insert(tk.END, "=== Ticket Summary ===\n\n")
+        self.supervisor_text.insert(tk.END, f"Total Tickets: {ticket_summary['total']}\n")
+        for status, count in ticket_summary.get('by_status', {}).items():
+            self.supervisor_text.insert(tk.END, f"  {status}: {count}\n")
             
     def view_file(self, event):
         """View file content on double-click"""
@@ -566,15 +732,21 @@ class DevVilleApp:
         """Show about dialog"""
         messagebox.showinfo(
             "About Dev-Ville",
-            "Dev-Ville: AI Software Company Simulator\n\n"
+            "Dev-Ville: AI Software Company Emulator\n\n"
             "An AI agent-based complete end-to-end software company\n"
-            "that produces real functional enterprise-grade software.\n\n"
+            "that produces real, production-grade software artifacts.\n\n"
             "Features:\n"
             "- Multi-agent system with specialized roles\n"
+            "- Advanced ticket system for development lifecycle\n"
+            "- Supervisor oversight and quality reviews\n"
+            "- Agent reward system with achievements\n"
+            "- Production-grade code generation\n"
+            "- Research findings and technology evaluation\n"
+            "- Demo recording and export\n"
             "- Time simulation (play, pause, fast-forward)\n"
             "- Project management and code generation\n"
             "- Export functionality for files and logs\n\n"
-            "Version: 1.0.0"
+            "Version: 2.0.0"
         )
 
 
