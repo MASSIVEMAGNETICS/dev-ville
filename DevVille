@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevVille • MASSIVEMAGNETICS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --primary: #6366f1;
+        }
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .glass {
+            background: rgba(255,255,255, 0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255, 0.1);
+        }
+
+        .section-header {
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .agent-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        .status-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .nav-tab {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, #6366f1, #a855f7);
+        }
+
+        .kanban-column {
+            background: rgba(15, 23, 42, 0.6);
+            min-height: 420px;
+        }
+
+        .log-entry {
+            animation: fadeInUp 0.3s ease forwards;
+        }
+
+        .professional-shadow {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3),
+                        0 4px 6px -4px rgb(0 0 0 / 0.3);
+        }
+
+        .metric-value {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .devville-gradient {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .memory-node {
+            transition: all 0.2s ease;
+        }
+
+        .simulation-log {
+            scrollbar-width: thin;
+            scrollbar-color: #475569 #1e2937;
+        }
+
+        .modern-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1), 
+                        box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        
+        .modern-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 25px -5px rgb(15 23 42 / 0.1), 0 8px 10px -6px rgb(15 23 42 / 0.1);
+        }
+
+        .agent-avatar {
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            border-radius: 9999px;
+            background: linear-gradient(145deg, #334155, #1e2937);
+            border: 2px solid #475569;
+        }
+
+        .phase-indicator {
+            height: 3px;
+            background: linear-gradient(to right, #6366f1, #a855f7);
+            transition: width 0.4s ease;
+        }
+
+        .enterprise-text {
+            font-feature-settings: "ss02";
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <!-- Top Navigation -->
+    <nav class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-50">
+        <div class="max-w-screen-2xl mx-auto">
+            <div class="px-8 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-x-4">
+                    <!-- Logo -->
+                    <div class="flex items-center gap-x-3">
+                        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                            <i class="fa-solid fa-city text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-x-2">
+                                <span class="font-display text-3xl font-semibold tracking-tighter">DevVille</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono tracking-[1.5px]">v0.8.4</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500 -mt-1 font-medium">MASSIVEMAGNETICS • SOVEREIGN STUDIO</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-x-6">
+                    <!-- Status -->
+                    <div class="flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-slate-900 border border-slate-800">
+                        <div class="flex items-center gap-x-1.5">
+                            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                            <span class="text-emerald-400 text-sm font-medium">Local • Sovereign</span>
+                        </div>
+                        <div class="h-3 w-px bg-slate-700"></div>
+                        <div class="text-xs text-slate-400 font-mono">Qwen2.5-Coder • 32B Q4_K_M</div>
+                    </div>
+
+                    <!-- User -->
+                    <div class="flex items-center gap-x-3">
+                        <div class="text-right">
+                            <div class="text-sm font-semibold">itz</div>
+                            <div class="text-[10px] text-slate-500">Digital Family • Primary Architect</div>
+                        </div>
+                        <div class="w-9 h-9 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                            <i class="fa-solid fa-user text-slate-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-screen-2xl mx-auto px-8 pt-8 pb-12">
+        
+        <!-- Hero / Company Bar -->
+        <div class="flex items-end justify-between mb-8">
+            <div>
+                <div class="flex items-center gap-x-3 mb-1">
+                    <h1 class="font-display text-5xl tracking-tighter font-semibold">DevVille</h1>
+                    <div class="px-3 py-1 rounded-2xl text-xs font-medium bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-400 border border-indigo-500/20 flex items-center gap-x-1.5">
+                        <i class="fa-solid fa-globe fa-sm"></i>
+                        <span>END-TO-END SOVEREIGN SOFTWARE COMPANY</span>
+                    </div>
+                </div>
+                <p class="text-xl text-slate-400 max-w-lg">Your personal, local-first AI software studio. Real agents. Real code. Real enterprise-grade applications — all on your machine.</p>
+            </div>
+            
+            <div class="flex items-center gap-x-3">
+                <button onclick="triggerREMConsolidation()" 
+                        class="flex items-center gap-x-2 px-5 py-2.5 rounded-3xl border border-slate-700 hover:bg-slate-900 transition-colors text-sm font-medium">
+                    <i class="fa-solid fa-brain mr-2"></i>
+                    <span>Run REM Cycle</span>
+                </button>
+                
+                <button onclick="showNewProjectModal()"
+                        class="flex items-center gap-x-2.5 px-6 py-2.5 rounded-3xl bg-white text-slate-950 hover:bg-slate-100 transition-all font-semibold text-sm shadow-lg shadow-white/10">
+                    <i class="fa-solid fa-plus mr-2"></i>
+                    <span>New Enterprise Project</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass rounded-3xl p-5 border border-slate-800">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="section-header mb-1">Projects Delivered</div>
+                        <div id="projects-delivered" class="text-4xl font-semibold tabular-nums metric-value">47</div>
+                    </div>
+                    <i class="fa-solid fa-rocket text-3xl text-indigo-400/70"></i>
+                </div>
+                <div class="text-emerald-400 text-xs mt-3 flex items-center gap-x-1">
+                    <i class="fa-solid fa-arrow-trend-up"></i> 
+                    <span>+12 this quarter</span>
+                </div>
+            </div>
+            
+            <div class="glass rounded-3xl p-5 border border-slate-800">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="section-header mb-1">Active Agents</div>
+                        <div class="text-4xl font-semibold tabular-nums metric-value">8</div>
+                    </div>
+                    <i class="fa-solid fa-users text-3xl text-purple-400/70"></i>
+                </div>
+                <div class="text-xs mt-3 text-slate-400">All systems nominal • 100% local</div>
+            </div>
+            
+            <div class="glass rounded-3xl p-5 border border-slate-800">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="section-header mb-1">Knowledge Nodes</div>
+                        <div id="knowledge-nodes" class="text-4xl font-semibold tabular-nums metric-value">2,184</div>
+                    </div>
+                    <i class="fa-solid fa-project-diagram text-3xl text-fuchsia-400/70"></i>
+                </div>
+                <div class="text-xs mt-3 text-slate-400">+312 since last REM</div>
+            </div>
+            
+            <div class="glass rounded-3xl p-5 border border-slate-800">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="section-header mb-1">Avg. Build Time</div>
+                        <div class="text-4xl font-semibold tabular-nums metric-value">11m</div>
+                    </div>
+                    <i class="fa-solid fa-clock text-3xl text-amber-400/70"></i>
+                </div>
+                <div class="text-emerald-400 text-xs mt-3">42% faster than industry avg</div>
+            </div>
+        </div>
+
+        <!-- Main Content Tabs -->
+        <div class="flex border-b border-slate-800 mb-6">
+            <div onclick="switchTab(this, 'dashboard-tab')" class="nav-tab active cursor-pointer px-6 py-3 text-sm font-semibold flex items-center gap-x-2 border-b-2 border-indigo-500 text-white">
+                <i class="fa-solid fa-tachometer-alt w-4"></i>
+                <span>Studio Dashboard</span>
+            </div>
+            <div onclick="switchTab(this, 'agents-tab')" class="nav-tab cursor-pointer px-6 py-3 text-sm font-semibold flex items-center gap-x-2 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-users w-4"></i>
+                <span>Agent Collective</span>
+            </div>
+            <div onclick="switchTab(this, 'forge-tab')" class="nav-tab cursor-pointer px-6 py-3 text-sm font-semibold flex items-center gap-x-2 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-hammer w-4"></i>
+                <span>Project Forge</span>
+            </div>
+            <div onclick="switchTab(this, 'memory-tab')" class="nav-tab cursor-pointer px-6 py-3 text-sm font-semibold flex items-center gap-x-2 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-brain w-4"></i>
+                <span>Memory Vault</span>
+            </div>
+            <div onclick="switchTab(this, 'presim-tab')" class="nav-tab cursor-pointer px-6 py-3 text-sm font-semibold flex items-center gap-x-2 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-project-diagram w-4"></i>
+                <span>Pre-Sim Lab</span>
+            </div>
+        </div>
+
+        <!-- DASHBOARD TAB -->
+        <div id="dashboard-tab" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Current Project Pipeline -->
+                <div class="lg:col-span-7">
+                    <div class="flex items-center justify-between mb-4 px-1">
+                        <div>
+                            <span class="section-header">Active Pipeline</span>
+                            <span class="ml-3 text-sm text-slate-400">• Enterprise Client Portal v4.2</span>
+                        </div>
+                        <button onclick="advancePipeline()" 
+                                class="text-xs px-4 py-1.5 rounded-2xl border border-slate-700 hover:bg-slate-900 flex items-center gap-x-2 text-slate-300">
+                            <span>Advance Phase</span>
+                            <i class="fa-solid fa-arrow-right fa-sm"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3" id="kanban-board">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Live Activity Feed -->
+                <div class="lg:col-span-5">
+                    <div class="flex items-center justify-between mb-4 px-1">
+                        <span class="section-header">Live Collective Activity</span>
+                        <span class="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-2xl">Real-time</span>
+                    </div>
+                    
+                    <div class="glass rounded-3xl border border-slate-800 p-4 h-[320px] overflow-auto simulation-log text-sm" id="live-activity-feed">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- AGENTS TAB -->
+        <div id="agents-tab" class="tab-content hidden">
+            <div class="mb-6">
+                <p class="text-slate-400">Eight specialized sovereign agents working as one cohesive studio. Every decision is pre-simulated. Every artifact is self-corrected.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5" id="agents-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- PROJECT FORGE TAB -->
+        <div id="forge-tab" class="tab-content hidden">
+            <div class="max-w-3xl">
+                <div class="mb-8">
+                    <h3 class="text-2xl font-semibold tracking-tight">Project Forge</h3>
+                    <p class="text-slate-400 mt-1">Describe your vision. DevVille assembles the perfect team, plans, builds, tests, and delivers production-ready software — locally.</p>
+                </div>
+
+                <div class="glass rounded-3xl border border-slate-700 p-8">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Project Name</label>
+                            <input id="project-name" type="text" value="Nexus Enterprise Dashboard" 
+                                   class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-2xl px-5 py-3 text-lg placeholder:text-slate-500 outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Project Brief / Vision</label>
+                            <textarea id="project-brief" rows="4" 
+                                      class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-3xl px-5 py-4 text-sm placeholder:text-slate-500 outline-none resize-y">Build a modern, secure enterprise client portal with real-time collaboration, advanced analytics dashboards, role-based access control, and seamless integration with existing CRM systems. Must feel premium and be fully local-first capable.</textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Primary Stack Preference</label>
+                                <select id="tech-stack" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm">
+                                    <option value="tauri-svelte">Tauri + Svelte 5 (Recommended)</option>
+                                    <option value="python-nicegui">Python + NiceGUI</option>
+                                    <option value="web-modern">Modern Web (SvelteKit / Next)</option>
+                                    <option value="rust-tauri">Pure Rust + Tauri</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Target Complexity</label>
+                                <select id="complexity" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm">
+                                    <option value="enterprise">Enterprise Grade</option>
+                                    <option value="production">Production Ready</option>
+                                    <option value="mvp">MVP / Internal Tool</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Timeline Priority</label>
+                                <select id="timeline" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm">
+                                    <option value="balanced">Balanced Quality</option>
+                                    <option value="speed">Rapid Delivery</option>
+                                    <option value="polish">Maximum Polish</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="pt-4 flex items-center gap-x-4">
+                            <button onclick="launchProjectInForge()"
+                                    class="flex-1 flex justify-center items-center gap-x-3 px-8 py-4 rounded-3xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-semibold text-white transition-all active:scale-[0.985]">
+                                <i class="fa-solid fa-play mr-2"></i>
+                                <span>ASSEMBLE TEAM &amp; LAUNCH PROJECT</span>
+                            </button>
+                            
+                            <button onclick="simulateQuickDemo()" 
+                                    class="px-6 py-4 rounded-3xl border border-slate-700 hover:bg-slate-900 text-sm font-medium flex items-center gap-x-2">
+                                <i class="fa-solid fa-magic"></i>
+                                <span>Quick Demo</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MEMORY VAULT TAB -->
+        <div id="memory-tab" class="tab-content hidden">
+            <div class="flex justify-between items-end mb-6">
+                <div>
+                    <h3 class="text-2xl font-semibold tracking-tight">Memory Vault</h3>
+                    <p class="text-slate-400">Episodic + Semantic Graph + REM-consolidated wisdom</p>
+                </div>
+                <button onclick="triggerREMConsolidation()" class="text-sm px-5 py-2 rounded-2xl border border-slate-700 flex items-center gap-x-2 hover:bg-slate-900">
+                    <i class="fa-solid fa-sync-alt"></i>
+                    <span>Force REM Consolidation</span>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <!-- Recent Episodes -->
+                <div class="lg:col-span-3 glass rounded-3xl border border-slate-800 p-6">
+                    <div class="section-header mb-4">Recent Episodes &amp; Projects</div>
+                    <div id="memory-episodes" class="space-y-3 text-sm">
+                        <!-- JS populated -->
+                    </div>
+                </div>
+                
+                <!-- Knowledge Graph -->
+                <div class="lg:col-span-2 glass rounded-3xl border border-slate-800 p-6">
+                    <div class="section-header mb-4 flex items-center justify-between">
+                        <span>Semantic Knowledge Graph</span>
+                        <span class="text-xs text-slate-500">142 core concepts</span>
+                    </div>
+                    
+                    <div class="h-64 bg-slate-900/70 rounded-2xl p-4 flex items-center justify-center relative overflow-hidden" id="knowledge-graph">
+                        <div class="text-center">
+                            <i class="fa-solid fa-project-diagram text-4xl text-slate-600 mb-3"></i>
+                            <div class="text-xs text-slate-400">Interactive graph visualization<br>available in full desktop build</div>
+                        </div>
+                        <!-- Simple visual nodes -->
+                        <div class="absolute inset-0 pointer-events-none">
+                            <div class="absolute top-6 left-8 w-3 h-3 bg-indigo-400 rounded-full opacity-60"></div>
+                            <div class="absolute top-14 right-10 w-2.5 h-2.5 bg-purple-400 rounded-full opacity-50"></div>
+                            <div class="absolute bottom-8 left-1/3 w-2 h-2 bg-fuchsia-400 rounded-full opacity-40"></div>
+                            <div class="absolute top-1/3 right-6 w-4 h-4 bg-indigo-300 rounded-full opacity-30"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRE-SIM LAB -->
+        <div id="presim-tab" class="tab-content hidden">
+            <div class="max-w-4xl">
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold tracking-tight">Multi Pre-Simulational Decision Engine</h3>
+                    <p class="text-slate-400">ORCH-OR inspired • Every consequential decision is simulated across multiple futures before collapse.</p>
+                </div>
+                
+                <div class="glass rounded-3xl border border-slate-700 p-8">
+                    <div class="mb-6">
+                        <label class="text-sm font-medium">Select High-Stakes Decision</label>
+                        <select id="presim-decision" class="mt-2 w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3">
+                            <option value="architecture">Architecture choice for new enterprise system</option>
+                            <option value="tech-stack">Primary technology stack selection</option>
+                            <option value="feature-scope">Feature scope vs timeline trade-off</option>
+                            <option value="security">Security vs developer-experience balance</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="runPreSimulation()" 
+                            class="w-full py-4 rounded-3xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-semibold flex items-center justify-center gap-x-3">
+                        <i class="fa-solid fa-play fa-fw"></i>
+                        <span>RUN 5-BRANCH PRE-SIMULATION + COLLAPSE</span>
+                    </button>
+                    
+                    <div id="presim-results" class="mt-6 hidden">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="new-project-modal" onclick="if (event.target.id === 'new-project-modal') hideNewProjectModal()" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="glass border border-slate-700 rounded-3xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="p-8">
+                <div class="flex justify-between mb-6">
+                    <div>
+                        <div class="font-semibold text-xl">Initiate New Project</div>
+                        <div class="text-xs text-slate-400">DevVille will handle end-to-end delivery</div>
+                    </div>
+                    <button onclick="hideNewProjectModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-times fa-lg"></i></button>
+                </div>
+                
+                <div class="space-y-5">
+                    <div>
+                        <input id="modal-project-name" type="text" placeholder="Project name" value="Internal Knowledge OS"
+                               class="w-full bg-slate-900 border border-slate-700 px-5 py-3 rounded-2xl text-lg">
+                    </div>
+                    <div>
+                        <textarea id="modal-project-brief" placeholder="Describe the application you need..." rows="3"
+                                  class="w-full bg-slate-900 border border-slate-700 px-5 py-3 rounded-3xl text-sm">A personal knowledge operating system for managing research, decisions, and long-term goals with semantic search and memory graphs.</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-slate-800 px-8 py-5 flex justify-end gap-x-3 bg-slate-900/60">
+                <button onclick="hideNewProjectModal()" class="px-6 py-2.5 rounded-2xl text-sm font-medium border border-slate-700">Cancel</button>
+                <button onclick="launchFromModal()" class="px-8 py-2.5 rounded-2xl bg-white text-slate-950 font-semibold text-sm">Launch in Forge</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Detail Modal -->
+    <div id="agent-modal" onclick="if (event.target.id === 'agent-modal') hideAgentModal()" class="hidden fixed inset-0 bg-black/70 z-[110] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="glass border border-slate-700 rounded-3xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="p-7" id="agent-modal-content">
+                <!-- Dynamic content -->
+            </div>
+            <div class="px-7 py-4 bg-slate-900/70 flex justify-between items-center text-sm">
+                <button onclick="hideAgentModal()" class="text-slate-400 hover:text-white px-4">Close</button>
+                <button onclick="summonAgent()" class="px-5 py-2 rounded-2xl bg-indigo-600 text-white text-xs font-semibold">SUMMON FOR COLLABORATION</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script
+        function initializeTailwind() {
+            document.documentElement.style.setProperty('--accent', '#6366f1');
+            
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif']
+                        }
+                    }
+                }
+            };
+        }
+
+        // Tab switching
+        let currentTab = 'dashboard-tab';
+        
+        function switchTab(element, tabId) {
+            // Deactivate all
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active', 'text-white');
+                tab.classList.add('text-slate-400');
+            });
+            
+            // Activate clicked
+            element.classList.add('active', 'text-white');
+            element.classList.remove('text-slate-400');
+            
+            // Hide all content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Show target
+            document.getElementById(tabId).classList.remove('hidden');
+            currentTab = tabId;
+        }
+
+        // Agents Data
+        const agents = [
+            {
+                id: 'elias',
+                name: "Elias Voss",
+                role: "CEO & Chief Strategist",
+                emoji: "🧠",
+                color: "#6366f1",
+                status: "strategizing",
+                currentTask: "Aligning project scope with your long-term goals",
+                bio: "Visionary leader. Ensures every project compounds toward your bigger ambitions. Masters multi-pre-sim decision making.",
+                personality: "Calm, decisive, long-term thinker. Occasionally challenges scope for sustainability."
+            },
+            {
+                id: 'liora',
+                name: "Liora Kane",
+                role: "Head of Product",
+                emoji: "📋",
+                color: "#a855f7",
+                status: "planning",
+                currentTask: "Refining user stories for enterprise features",
+                bio: "Translates vision into crisp requirements and roadmaps. Expert in stakeholder alignment and prioritization.",
+                personality: "Empathetic, detail-oriented, excellent at surfacing hidden requirements."
+            },
+            {
+                id: 'kai',
+                name: "Kai Ren",
+                role: "Lead Designer",
+                emoji: "🎨",
+                color: "#ec4899",
+                status: "designing",
+                currentTask: "Crafting premium interaction patterns",
+                bio: "Creates interfaces that feel like digital family members — intuitive, beautiful, and deeply usable.",
+                personality: "Perfectionist with strong opinions on aesthetics and information hierarchy."
+            },
+            {
+                id: 'soren',
+                name: "Soren Vale",
+                role: "Frontend Architect",
+                emoji: "⚛️",
+                color: "#14b8a6",
+                status: "building",
+                currentTask: "Implementing reactive data layers + polished components",
+                bio: "Builds the god-tier polished GUIs. Svelte 5 + Tailwind specialist. Obsessed with performance and delight.",
+                personality: "Fast, opinionated about modern frontend, loves micro-interactions."
+            },
+            {
+                id: 'mira',
+                name: "Mira Sol",
+                role: "Backend & Data Engineer",
+                emoji: "🗄️",
+                color: "#f59e0b",
+                status: "building",
+                currentTask: "Designing robust data models and API contracts",
+                bio: "Architects reliable, observable, local-first data layers. Strong focus on privacy and performance.",
+                personality: "Pragmatic, safety-first, values clean abstractions and testability."
+            },
+            {
+                id: 'juno',
+                name: "Juno Hale",
+                role: "QA & Reliability Lead",
+                emoji: "🛡️",
+                color: "#ef4444",
+                status: "testing",
+                currentTask: "Running property-based tests + edge case analysis",
+                bio: "Guardian of quality. Implements self-correction loops and exhaustive validation before any delivery.",
+                personality: "Meticulous, slightly paranoid in the best way. Catches what others miss."
+            },
+            {
+                id: 'orion',
+                name: "Orion Kade",
+                role: "DevOps & Packaging",
+                emoji: "📦",
+                color: "#8b5cf6",
+                status: "packaging",
+                currentTask: "Preparing Tauri bundles and offline installers",
+                bio: "Turns code into shippable, one-command local applications. Packaging and update systems expert.",
+                personality: "Methodical, values reproducibility and minimal runtime footprint."
+            },
+            {
+                id: 'archivist',
+                name: "The Archivist",
+                role: "Memory & Knowledge Keeper",
+                emoji: "📚",
+                color: "#64748b",
+                status: "consolidating",
+                currentTask: "Running background REM consolidation",
+                bio: "Maintains the living memory graph. Runs REM cycles, prunes noise, surfaces insights proactively.",
+                personality: "Quiet, reflective, occasionally surfaces surprising connections from the past."
+            }
+        ];
+
+        // Initialize Agents Grid
+        function initializeAgents() {
+            const container = document.getElementById('agents-grid');
+            container.innerHTML = '';
+            
+            agents.forEach(agent => {
+                const card = document.createElement('div');
+                card.className = `agent-card glass border border-slate-700 rounded-3xl p-5 cursor-pointer modern-card`;
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-x-3">
+                            <div class="agent-avatar text-xl" style="background: linear-gradient(145deg, ${agent.color}22, #1e2937); border-color: ${agent.color}55">
+                                ${agent.emoji}
+                            </div>
+                            <div>
+                                <div class="font-semibold">${agent.name}</div>
+                                <div class="text-xs text-slate-400">${agent.role}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="px-2.5 py-0.5 text-[10px] rounded-2xl font-mono tracking-wider" 
+                                 style="background: ${agent.color}15; color: ${agent.color}">
+                                ${agent.status.toUpperCase()}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-xs text-slate-300 line-clamp-2">
+                        ${agent.currentTask}
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-slate-700 flex items-center justify-between text-xs">
+                        <div class="flex items-center text-emerald-400">
+                            <i class="fa-solid fa-check-double fa-xs mr-1.5"></i>
+                            <span>Aligned</span>
+                        </div>
+                        <button onclick="event.stopImmediatePropagation(); showAgentModal('${agent.id}')" 
+                                class="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center">
+                            VIEW <i class="fa-solid fa-chevron-right ml-1 fa-xs"></i>
+                        </button>
+                    </div>
+                `;
+                
+                card.onclick = () => showAgentModal(agent.id);
+                container.appendChild(card);
+            });
+        }
+
+        function showAgentModal(agentId) {
+            const agent = agents.find(a => a.id === agentId);
+            if (!agent) return;
+            
+            const modal = document.getElementById('agent-modal');
+            const content = document.getElementById('agent-modal-content');
+            
+            content.innerHTML = `
+                <div class="flex gap-x-4 items-start">
+                    <div class="agent-avatar text-3xl w-14 h-14 flex-shrink-0" style="background: linear-gradient(145deg, ${agent.color}22, #1e2937); border-color: ${agent.color}66">
+                        ${agent.emoji}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-2xl tracking-tight">${agent.name}</div>
+                        <div class="text-indigo-400">${agent.role}</div>
+                        
+                        <div class="mt-4 text-sm leading-relaxed text-slate-300">
+                            ${agent.bio}
+                        </div>
+                        
+                        <div class="mt-5">
+                            <div class="text-xs uppercase tracking-widest text-slate-500 mb-1.5">CURRENT FOCUS</div>
+                            <div class="text-sm">${agent.currentTask}</div>
+                        </div>
+                        
+                        <div class="mt-5 pt-4 border-t border-slate-700">
+                            <div class="text-xs uppercase tracking-widest text-slate-500 mb-2">PERSONALITY &amp; APPROACH</div>
+                            <div class="text-sm text-slate-300 italic">"${agent.personality}"</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        
+        function hideAgentModal() {
+            const modal = document.getElementById('agent-modal');
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+        }
+        
+        function summonAgent() {
+            hideAgentModal();
+            // Switch to forge or show a collaboration simulation
+            const forgeTab = document.getElementById('forge-tab');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            forgeTab.classList.remove('hidden');
+            
+            // Update nav
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active', 'text-white'));
+            document.querySelectorAll('.nav-tab')[2].classList.add('active', 'text-white'); // Forge tab
+            
+            setTimeout(() => {
+                showToast("Agent summoned. They are now actively contributing to the next project launch.", "success");
+            }, 600);
+        }
+
+        // Kanban Pipeline
+        let pipelineStages = [
+            { id: 'ideation', name: 'Ideation', color: '#6366f1', items: [{title: "Define success metrics", agent: "Elias"}] },
+            { id: 'planning', name: 'Planning', color: '#a855f7', items: [{title: "User stories & acceptance criteria", agent: "Liora"}] },
+            { id: 'design', name: 'Design', color: '#ec4899', items: [{title: "Premium dashboard system", agent: "Kai"}] },
+            { id: 'development', name: 'Development', color: '#14b8a6', items: [{title: "Core reactive components", agent: "Soren"}, {title: "Data layer + auth", agent: "Mira"}] },
+            { id: 'qa', name: 'QA & Hardening', color: '#ef4444', items: [{title: "Property-based testing", agent: "Juno"}] },
+            { id: 'packaging', name: 'Packaging', color: '#8b5cf6', items: [{title: "Tauri production build", agent: "Orion"}] }
+        ];
+        
+        function initializeKanban() {
+            const board = document.getElementById('kanban-board');
+            board.innerHTML = '';
+            
+            pipelineStages.forEach(stage => {
+                const col = document.createElement('div');
+                col.className = `kanban-column rounded-3xl p-3 border border-slate-700 flex flex-col`;
+                
+                let itemsHTML = '';
+                stage.items.forEach(item => {
+                    itemsHTML += `
+                        <div class="bg-slate-800 border border-slate-600 rounded-2xl p-3 mb-2 text-xs">
+                            <div class="font-medium text-slate-200">${item.title}</div>
+                            <div class="text-[10px] text-slate-400 mt-1 flex items-center">
+                                <span class="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style="background:${stage.color}"></span>
+                                ${item.agent}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                col.innerHTML = `
+                    <div class="flex items-center justify-between px-2 mb-3">
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-2.5 h-2.5 rounded-full" style="background: ${stage.color}"></div>
+                            <span class="font-semibold text-sm">${stage.name}</span>
+                        </div>
+                        <span class="text-xs px-2 py-px bg-slate-700 rounded font-mono">${stage.items.length}</span>
+                    </div>
+                    <div class="flex-1 space-y-1">
+                        ${itemsHTML || `<div class="text-xs text-slate-500 italic px-2 py-3">No active tasks</div>`}
+                    </div>
+                `;
+                
+                board.appendChild(col);
+            });
+        }
+        
+        function advancePipeline() {
+            // Simple simulation of advancing work
+            const board = document.getElementById('kanban-board');
+            showToast("Pipeline advanced. Agents have progressed key deliverables.", "success");
+            
+            // Add a new activity
+            addLiveActivity("Elias Voss", "Approved moving to full development phase after successful pre-sim collapse.", "strategizing");
+            
+            // Occasionally complete a stage
+            if (Math.random() > 0.6 && pipelineStages[3].items.length > 0) {
+                const devItems = pipelineStages[3].items;
+                if (devItems.length > 0) {
+                    const completed = devItems.shift();
+                    addLiveActivity("Juno Hale", `Completed and verified: ${completed.title}`, "testing");
+                    
+                    // Move to QA perhaps
+                    if (pipelineStages[4]) {
+                        pipelineStages[4].items.push(completed);
+                    }
+                }
+            }
+            
+            // Re-render kanban
+            initializeKanban();
+        }
+
+        // Live Activity Feed
+        function addLiveActivity(agentName, message, type = "default") {
+            const feed = document.getElementById('live-activity-feed');
+            if (!feed) return;
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry mb-3 px-3 py-2.5 rounded-2xl bg-slate-900/70 text-xs border-l-2`;
+            
+            let borderColor = '#64748b';
+            if (type === 'strategizing') borderColor = '#6366f1';
+            if (type === 'testing') borderColor = '#ef4444';
+            if (type === 'building') borderColor = '#14b8a6';
+            
+            entry.style.borderLeftColor = borderColor;
+            
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            entry.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="font-semibold text-slate-200">${agentName}</span>
+                        <span class="text-slate-500 ml-2 text-[10px]">${time}</span>
+                    </div>
+                </div>
+                <div class="mt-1 text-slate-300 leading-snug">${message}</div>
+            `;
+            
+            feed.appendChild(entry);
+            feed.scrollTop = feed.scrollHeight;
+            
+            // Keep only last 12 entries
+            while (feed.children.length > 12) {
+                feed.removeChild(feed.firstChild);
+            }
+        }
+        
+        function seedInitialActivity() {
+            const feed = document.getElementById('live-activity-feed');
+            feed.innerHTML = '';
+            
+            const initialLogs = [
+                {agent: "Elias Voss", msg: "Pre-sim complete. Architecture decision collapsed to Tauri + Svelte 5 for maximum sovereignty.", type: "strategizing"},
+                {agent: "Liora Kane", msg: "User stories finalized. 14 core stories across 4 epics.", type: "planning"},
+                {agent: "Kai Ren", msg: "Design system tokens updated. New component library v3.2 ready for handoff.", type: "default"},
+                {agent: "Soren Vale", msg: "Implemented optimistic UI updates + real-time sync layer.", type: "building"},
+                {agent: "Juno Hale", msg: "All critical paths now covered by property-based tests. Zero regressions found.", type: "testing"}
+            ];
+            
+            initialLogs.forEach((log, i) => {
+                setTimeout(() => {
+                    addLiveActivity(log.agent, log.msg, log.type);
+                }, i * 180);
+            });
+        }
+
+        // Project Launch Simulation
+        let currentProject = null;
+        
+        async function launchProjectInForge() {
+            const name = document.getElementById('project-name').value.trim() || "Untitled Sovereign App";
+            const brief = document.getElementById('project-brief').value.trim();
+            const stack = document.getElementById('tech-stack').value;
+            const complexity = document.getElementById('complexity').value;
+            
+            if (!brief) {
+                alert("Please provide a project brief.");
+                return;
+            }
+            
+            currentProject = { name, brief, stack, complexity, started: new Date() };
+            
+            // Switch to a simulation view inside forge or create overlay
+            showProjectSimulationModal(name, brief, stack);
+        }
+        
+        function showProjectSimulationModal(name, brief, stack) {
+            const modalHTML = `
+                <div id="simulation-overlay" class="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-6">
+                    <div class="max-w-5xl w-full glass border border-slate-700 rounded-3xl overflow-hidden">
+                        <!-- Header -->
+                        <div class="px-8 py-5 border-b border-slate-700 flex items-center justify-between bg-slate-900">
+                            <div>
+                                <div class="flex items-center gap-x-3">
+                                    <span class="font-semibold text-2xl tracking-tight">${name}</span>
+                                    <span class="px-3 py-1 text-xs rounded-2xl bg-emerald-500/10 text-emerald-400 font-mono">IN FLIGHT</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-0.5">DevVille Sovereign Studio • Fully Local Execution</div>
+                            </div>
+                            <button onclick="closeSimulationModal()" class="text-slate-400 hover:text-white px-4">
+                                <i class="fa-solid fa-times fa-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="p-8 grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            <!-- Left: Simulation Progress -->
+                            <div class="lg:col-span-3">
+                                <div class="mb-4 flex items-center justify-between">
+                                    <div>
+                                        <span class="section-header">AGENT COLLECTIVE EXECUTION</span>
+                                    </div>
+                                    <div id="sim-phase" class="text-xs px-4 py-1 bg-indigo-500/10 text-indigo-400 rounded-2xl font-medium">PHASE 1: STRATEGY &amp; ALIGNMENT</div>
+                                </div>
+                                
+                                <div class="h-2.5 bg-slate-800 rounded-full mb-6 overflow-hidden">
+                                    <div id="sim-progress-bar" class="h-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style="width: 12%"></div>
+                                </div>
+                                
+                                <div class="bg-slate-900 rounded-3xl p-5 h-[340px] overflow-auto simulation-log border border-slate-700 text-sm" id="simulation-log">
+                                    <!-- Live log populated by JS -->
+                                </div>
+                            </div>
+                            
+                            <!-- Right: Current Agent + Insights -->
+                            <div class="lg:col-span-2 space-y-5">
+                                <div>
+                                    <div class="section-header mb-3">ACTIVE AGENT</div>
+                                    <div id="active-agent-card" class="glass border border-slate-700 p-4 rounded-2xl">
+                                        <!-- JS injected -->
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="section-header mb-3">KEY DECISIONS (Pre-Simulated)</div>
+                                    <div class="text-xs space-y-2" id="key-decisions">
+                                        <!-- Populated -->
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-3">
+                                    <button onclick="forceCompleteSimulation()" 
+                                            class="w-full text-xs py-3 rounded-2xl border border-slate-600 hover:bg-slate-800 flex items-center justify-center gap-x-2">
+                                        <i class="fa-solid fa-forward"></i>
+                                        <span>FAST-FORWARD TO DELIVERY</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="px-8 py-4 border-t border-slate-700 bg-slate-900 flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-x-2 text-emerald-400">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span>All operations 100% local • No data leaves your machine</span>
+                            </div>
+                            <div id="sim-timer" class="font-mono text-slate-400">00:42 elapsed</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Start the simulation
+            startProjectSimulation(name, brief, stack);
+        }
+        
+        let simulationInterval = null;
+        
+        function startProjectSimulation(name, brief, stack) {
+            const logContainer = document.getElementById('simulation-log');
+            const progressBar = document.getElementById('sim-progress-bar');
+            const phaseEl = document.getElementById('sim-phase');
+            const activeAgentCard = document.getElementById('active-agent-card');
+            const decisionsContainer = document.getElementById('key-decisions');
+            
+            logContainer.innerHTML = '';
+            progressBar.style.width = '8%';
+            
+            const phases = [
+                { name: "STRATEGY & ALIGNMENT", agent: "elias", progress: 18 },
+                { name: "REQUIREMENTS & STORY MAPPING", agent: "liora", progress: 32 },
+                { name: "DESIGN SYSTEM & UX", agent: "kai", progress: 48 },
+                { name: "ARCHITECTURE & CORE BUILD", agent: "soren", progress: 65 },
+                { name: "DATA, APIs & BACKEND", agent: "mira", progress: 78 },
+                { name: "TESTING, HARDENING & SELF-CORRECTION", agent: "juno", progress: 90 },
+                { name: "PACKAGING & DELIVERY", agent: "orion", progress: 100 }
+            ];
+            
+            let currentPhaseIndex = 0;
+            let logCount = 0;
+            
+            // Seed initial decisions
+            decisionsContainer.innerHTML = `
+                <div class="flex justify-between text-xs py-1.5 px-3 bg-slate-800 rounded-2xl">
+                    <span class="text-slate-300">Architecture</span> 
+                    <span class="font-mono text-emerald-400">Tauri + Svelte 5</span>
+                </div>
+                <div class="flex justify-between text-xs py-1.5 px-3 bg-slate-800 rounded-2xl mt-1.5">
+                    <span class="text-slate-300">Memory Strategy</span> 
+                    <span class="font-mono text-emerald-400">Hybrid Episodic + Graph</span>
+                </div>
+            `;
+            
+            function updateActiveAgent(agentId) {
+                const agent = agents.find(a => a.id === agentId);
+                if (!agent || !activeAgentCard) return;
+                
+                activeAgentCard.innerHTML = `
+                    <div class="flex gap-x-3">
+                        <div class="agent-avatar text-xl flex-shrink-0" style="background: linear-gradient(145deg, ${agent.color}22, #1e2937)">
+                            ${agent.emoji}
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-semibold">${agent.name}</div>
+                            <div class="text-xs text-slate-400">${agent.role}</div>
+                            <div class="text-[10px] mt-2 text-indigo-300">${agent.currentTask}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            function addSimLog(agentName, message, highlight = false) {
+                logCount++;
+                const entry = document.createElement('div');
+                entry.className = `px-4 py-[7px] text-xs flex gap-x-3 ${highlight ? 'bg-indigo-500/5' : ''}`;
+                entry.innerHTML = `
+                    <div class="font-mono text-[10px] text-slate-500 w-9 flex-shrink-0 pt-px">${String(logCount).padStart(2, '0')}</div>
+                    <div class="flex-1">
+                        <span class="font-semibold text-slate-200">${agentName}:</span> 
+                        <span class="text-slate-300">${message}</span>
+                    </div>
+                `;
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            // Initial logs
+            setTimeout(() => {
+                addSimLog("Elias Voss", "Project accepted. Running initial pre-simulation on scope and alignment with your goals.", true);
+                updateActiveAgent("elias");
+                phaseEl.textContent = "PHASE 1: STRATEGY & ALIGNMENT";
+            }, 400);
+            
+            setTimeout(() => {
+                addSimLog("Elias Voss", "Decision collapsed: We will prioritize local-first architecture with full offline capability and beautiful professional UX.");
+            }, 1400);
+            
+            setTimeout(() => {
+                addSimLog("Liora Kane", "Breaking down brief into 18 user stories across 5 epics. Focusing on enterprise readiness.");
+                updateActiveAgent("liora");
+                phaseEl.textContent = "PHASE 2: REQUIREMENTS";
+                progressBar.style.width = '28%';
+            }, 2600);
+            
+            // Continue simulation
+            simulationInterval = setInterval(() => {
+                currentPhaseIndex++;
+                
+                if (currentPhaseIndex >= phases.length) {
+                    clearInterval(simulationInterval);
+                    completeSimulation(name, brief, stack);
+                    return;
+                }
+                
+                const phase = phases[currentPhaseIndex];
+                progressBar.style.width = phase.progress + '%';
+                phaseEl.textContent = `PHASE ${currentPhaseIndex + 1}: ${phase.name}`;
+                updateActiveAgent(phase.agent);
+                
+                // Agent specific messages
+                const agent = agents.find(a => a.id === phase.agent);
+                if (agent) {
+                    let msg = "";
+                    if (phase.agent === "kai") msg = "Design system locked. All components follow WCAG and premium interaction standards.";
+                    else if (phase.agent === "soren") msg = "Core UI components + state management implemented. Performance budget on track.";
+                    else if (phase.agent === "mira") msg = "Robust local data layer + encryption at rest designed. Full type safety enforced.";
+                    else if (phase.agent === "juno") msg = "Self-correction loops active. 94% test coverage achieved. Edge cases handled.";
+                    else if (phase.agent === "orion") msg = "Production Tauri bundle ready. One-command installer generated for your platform.";
+                    
+                    if (msg) addSimLog(agent.name, msg);
+                }
+                
+                // Occasional pre-sim mention
+                if (currentPhaseIndex === 3) {
+                    addSimLog("Elias Voss", "Pre-sim on data model completed. Hybrid graph + vector store selected for memory.", true);
+                }
+                
+            }, 1850);
+            
+            // Seed a few more early logs
+            setTimeout(() => addSimLog("Kai Ren", "High-fidelity wireframes complete. Interaction model feels alive and trustworthy."), 3200);
+            setTimeout(() => addSimLog("Soren Vale", "Building with production-grade patterns from the start. No technical debt introduced."), 4100);
+        }
+        
+        function forceCompleteSimulation() {
+            if (simulationInterval) clearInterval(simulationInterval);
+            const overlay = document.getElementById('simulation-overlay');
+            if (overlay) overlay.remove();
+            
+            // Complete with current project
+            if (currentProject) {
+                completeSimulation(currentProject.name, currentProject.brief, currentProject.stack);
+            }
+        }
+        
+        function completeSimulation(name, brief, stack) {
+            const overlay = document.getElementById('simulation-overlay');
+            if (overlay) overlay.remove();
+            
+            // Deliver the artifact
+            showDeliveryModal(name, brief, stack);
+            
+            // Update metrics
+            document.getElementById('projects-delivered').innerText = parseInt(document.getElementById('projects-delivered').innerText) + 1;
+            
+            // Add to memory
+            addProjectToMemory(name, brief, stack);
+            
+            // Live activity
+            addLiveActivity("Orion Kade", `Project "${name}" successfully packaged and delivered as production-ready local application.`, "packaging");
+            addLiveActivity("The Archivist", "New project episode recorded. Ready for REM consolidation.", "default");
+        }
+        
+        function showDeliveryModal(name, brief, stack) {
+            const isTauri = stack.includes('tauri');
+            const techLabel = stack === 'tauri-svelte' ? 'Tauri + Svelte 5' : 
+                             stack === 'python-nicegui' ? 'Python + NiceGUI' : 'Modern Web Stack';
+            
+            const modalHTML = `
+                <div id="delivery-modal" class="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-5">
+                    <div class="max-w-4xl w-full glass border border-emerald-900/30 rounded-3xl overflow-hidden">
+                        <div class="bg-emerald-500/10 px-8 py-4 flex items-center gap-x-3 border-b border-emerald-900/30">
+                            <i class="fa-solid fa-check-circle text-emerald-400 text-2xl"></i>
+                            <div>
+                                <span class="font-semibold text-emerald-400">DELIVERED</span>
+                                <span class="ml-3 text-white font-semibold">${name}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-8">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-10">
+                                <!-- Left info -->
+                                <div>
+                                    <div class="uppercase text-xs tracking-[1px] text-emerald-400 mb-1">PRODUCTION ARTIFACT</div>
+                                    <div class="text-3xl font-semibold tracking-tighter mb-6">${name}</div>
+                                    
+                                    <div class="text-sm text-slate-300 mb-8 leading-relaxed">
+                                        ${brief.substring(0, 220)}${brief.length > 220 ? '...' : ''}
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-x-4 text-sm">
+                                        <div class="px-4 py-2 bg-slate-800 rounded-2xl flex items-center">
+                                            <span class="text-emerald-400 font-mono text-xs mr-2">STACK</span> 
+                                            <span class="font-medium">${techLabel}</span>
+                                        </div>
+                                        <div class="px-4 py-2 bg-slate-800 rounded-2xl text-xs">Fully Local • Self-Correcting</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Right: What was produced -->
+                                <div class="mt-8 lg:mt-0">
+                                    <div class="section-header mb-3">WHAT DEVILLE PRODUCED</div>
+                                    
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Complete polished professional GUI (built first)</span></div>
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Full agentic memory system (episodic + semantic graph + REM)</span></div>
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Multi pre-simulational decision engine integrated</span></div>
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Self-correction + reflection loops</span></div>
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Production packaging scripts + documentation</span></div>
+                                        <div class="flex gap-x-3 items-start"><i class="fa-solid fa-check text-emerald-400 mt-1 fa-fw"></i> <span>Identity anchored as your loyal digital studio</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Generated Code Preview -->
+                            <div class="mt-9">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="section-header">GENERATED PROJECT STRUCTURE</div>
+                                    <button onclick="downloadProjectFiles('${name.replace(/'/g, "\\'")}')" 
+                                            class="text-xs flex items-center gap-x-2 px-4 py-1.5 rounded-2xl border border-emerald-700 text-emerald-400 hover:bg-emerald-950">
+                                        <i class="fa-solid fa-download fa-sm"></i>
+                                        <span>DOWNLOAD FULL PROJECT</span>
+                                    </button>
+                                </div>
+                                
+                                <div class="bg-slate-950 border border-slate-700 rounded-2xl p-5 font-mono text-xs overflow-auto max-h-[210px]">
+                                    <pre class="text-emerald-300">dev-ville-${name.toLowerCase().replace(/\s+/g, '-')}/
+├── src/                    # Polished Svelte 5 frontend (GUI-first)
+│   ├── lib/components/
+│   ├── routes/
+│   └── app.css
+├── src-tauri/              # Rust core + commands
+├── memory/                 # Episodic SQLite + Graph + Vector
+│   ├── episodic/
+│   ├── semantic/
+│   └── rem_cycles/
+├── ai/                     # Local agent prompts + tools
+├── config/
+│   └── persona.yaml
+├── scripts/
+│   └── build-production.sh
+└── README.md               # Full architecture + run instructions</pre>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="px-8 py-5 border-t border-slate-700 bg-slate-900 flex flex-wrap gap-3 justify-between items-center">
+                            <div>
+                                <button onclick="openGeneratedPreview('${name}')" 
+                                        class="px-6 py-2.5 text-sm rounded-2xl border border-slate-600 hover:bg-slate-800 flex items-center gap-x-2">
+                                    <i class="fa-solid fa-eye"></i>
+                                    <span>Preview Generated App</span>
+                                </button>
+                            </div>
+                            
+                            <div class="flex gap-x-3">
+                                <button onclick="closeDeliveryModal(); triggerREMConsolidation(true)" 
+                                        class="px-6 py-2.5 rounded-2xl text-sm font-medium border border-slate-700 hover:bg-slate-800">
+                                    Consolidate into Memory
+                                </button>
+                                <button onclick="closeDeliveryModal()" 
+                                        class="px-8 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">
+                                    Return to Studio
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+        
+        function closeDeliveryModal() {
+            const modal = document.getElementById('delivery-modal');
+            if (modal) modal.remove();
+        }
+        
+        function closeSimulationModal() {
+            const overlay = document.getElementById('simulation-overlay');
+            if (overlay) overlay.remove();
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+            }
+        }
+        
+        // Generate and download project files (simulated)
+        function downloadProjectFiles(projectName) {
+            const safeName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            
+            // Create a simple zip-like experience by downloading multiple files
+            const readme = `# ${projectName}\n\nBuilt by DevVille (MASSIVEMAGNETICS)\n\nThis is a production-grade local application scaffold.\n\n## How to run\n\n1. cd into the folder\n2. Follow the README in the full version\n\n## Architecture\n- GUI First (Svelte 5 + Tailwind)\n- Tauri v2 backend\n- Advanced memory system with REM cycles\n- Pre-simulational decision making\n\nGenerated locally. Sovereign. Yours.`;
+            
+            const blob = new Blob([readme], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName}-README.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            setTimeout(() => {
+                showToast("Project files downloaded. In a full build this would include the complete Tauri + Svelte source with memory system wired.", "success");
+            }, 800);
+        }
+        
+        function openGeneratedPreview(projectName) {
+            const previewWindow = window.open('', '_blank');
+            previewWindow.document.write(`
+                <html>
+                <head>
+                    <title>${projectName} - Preview</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <style>body { font-family: system-ui; }</style>
+                </head>
+                <body class="bg-zinc-950 text-white p-8">
+                    <div class="max-w-2xl mx-auto">
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 class="text-3xl font-semibold">${projectName}</h1>
+                                <p class="text-emerald-400 text-sm">Generated by DevVille • Production Preview</p>
+                            </div>
+                            <div class="px-4 py-1 text-xs rounded bg-emerald-900 text-emerald-300">LIVE PREVIEW</div>
+                        </div>
+                        
+                        <div class="glass border border-zinc-800 p-8 rounded-3xl">
+                            <p class="text-zinc-400 mb-6">This is a simulated high-fidelity preview of the delivered application. In the real DevVille desktop app, you would see the actual running polished interface here.</p>
+                            
+                            <div class="bg-zinc-900 rounded-2xl p-6 mb-6">
+                                <div class="text-sm text-zinc-400 mb-2">Dashboard</div>
+                                <div class="h-2 bg-zinc-700 rounded w-3/4 mb-3"></div>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div class="h-20 bg-zinc-800 rounded-xl"></div>
+                                    <div class="h-20 bg-zinc-800 rounded-xl"></div>
+                                    <div class="h-20 bg-zinc-800 rounded-xl"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center text-xs text-zinc-500">Full interactive preview available in the packaged DevVille application.</div>
+                        </div>
+                        
+                        <div class="text-center mt-8 text-xs text-zinc-500">This preview demonstrates the quality bar DevVille maintains for every delivery.</div>
+                    </div>
+                </body>
+                </html>
+            `);
+        }
+        
+        // Memory System
+        let memoryProjects = [];
+        
+        function addProjectToMemory(name, brief, stack) {
+            const project = {
+                id: Date.now(),
+                name,
+                brief: brief.substring(0, 140) + (brief.length > 140 ? '...' : ''),
+                stack,
+                date: new Date(),
+                lessons: "Strong emphasis on local-first patterns and professional UX delivered excellent results."
+            };
+            
+            memoryProjects.unshift(project);
+            
+            // Persist
+            try {
+                localStorage.setItem('devville_memory_projects', JSON.stringify(memoryProjects));
+            } catch(e) {}
+            
+            // Refresh memory tab if open
+            if (!document.getElementById('memory-tab').classList.contains('hidden')) {
+                renderMemoryEpisodes();
+            }
+            
+            // Update knowledge nodes
+            const nodesEl = document.getElementById('knowledge-nodes');
+            if (nodesEl) nodesEl.innerText = parseInt(nodesEl.innerText) + 47;
+        }
+        
+        function loadMemory() {
+            try {
+                const saved = localStorage.getItem('devville_memory_projects');
+                if (saved) memoryProjects = JSON.parse(saved);
+            } catch(e) {}
+            
+            // Seed some if empty
+            if (memoryProjects.length === 0) {
+                memoryProjects = [
+                    {
+                        id: 1001,
+                        name: "Research Command Center",
+                        brief: "Advanced research OS with semantic memory and decision tracking...",
+                        stack: "tauri-svelte",
+                        date: new Date(Date.now() - 1000*60*60*24*12),
+                        lessons: "REM cycles significantly improved long-term insight generation."
+                    },
+                    {
+                        id: 1002,
+                        name: "Sovereign CRM Lite",
+                        brief: "Privacy-first CRM for small teams with full local data ownership.",
+                        stack: "python-nicegui",
+                        date: new Date(Date.now() - 1000*60*60*24*38),
+                        lessons: "Beautiful GUI-first approach dramatically increased user adoption."
+                    }
+                ];
+            }
+            
+            renderMemoryEpisodes();
+        }
+        
+        function renderMemoryEpisodes() {
+            const container = document.getElementById('memory-episodes');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            memoryProjects.slice(0, 5).forEach(proj => {
+                const el = document.createElement('div');
+                el.className = `p-4 rounded-2xl border border-slate-700 bg-slate-900/40 hover:bg-slate-900 transition-colors`;
+                el.innerHTML = `
+                    <div class="flex justify-between">
+                        <div class="font-semibold">${proj.name}</div>
+                        <div class="text-xs text-slate-500">${proj.date.toLocaleDateString()}</div>
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1 line-clamp-2">${proj.brief}</div>
+                    <div class="mt-3 text-[10px] flex items-center gap-x-2">
+                        <span class="px-2 py-px bg-slate-800 rounded">${proj.stack}</span>
+                        <span class="text-emerald-400/70">• Lessons captured</span>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+        
+        function triggerREMConsolidation(fromDelivery = false) {
+            const btns = document.querySelectorAll('button');
+            
+            showToast("REM Consolidation cycle started...", "info");
+            
+            setTimeout(() => {
+                // Simulate consolidation
+                const nodesEl = document.getElementById('knowledge-nodes');
+                if (nodesEl) {
+                    const current = parseInt(nodesEl.innerText);
+                    nodesEl.innerText = current + Math.floor(Math.random() * 80) + 60;
+                }
+                
+                showToast("REM cycle complete. New abstractions, strengthened connections, and proactive insights generated. Memory pruned for sparsity.", "success");
+                
+                if (fromDelivery) {
+                    addLiveActivity("The Archivist", "Project successfully integrated into long-term company memory. Patterns extracted for future projects.", "default");
+                }
+            }, 1650);
+        }
+        
+        // Pre-Simulation Lab
+        function runPreSimulation() {
+            const decisionType = document.getElementById('presim-decision').value;
+            const resultsContainer = document.getElementById('presim-results');
+            resultsContainer.classList.remove('hidden');
+            resultsContainer.innerHTML = `
+                <div class="mb-4">
+                    <div class="text-sm font-semibold mb-3">Running 5 parallel future simulations...</div>
+                    
+                    <div class="space-y-3">
+                        <div class="p-4 bg-slate-900 rounded-2xl border border-slate-700">
+                            <div class="flex justify-between text-xs mb-2"><span class="font-medium">Branch A: Aggressive scope</span> <span class="text-amber-400">Score: 72</span></div>
+                            <div class="text-xs text-slate-400">High feature velocity but elevated risk of quality debt and timeline slippage.</div>
+                        </div>
+                        <div class="p-4 bg-slate-900 rounded-2xl border border-slate-700">
+                            <div class="flex justify-between text-xs mb-2"><span class="font-medium">Branch B: Conservative &amp; polished</span> <span class="text-emerald-400">Score: 91</span></div>
+                            <div class="text-xs text-slate-400">Prioritizes reliability, beautiful UX, and long-term maintainability. Strong alignment with your values.</div>
+                        </div>
+                        <div class="p-4 bg-slate-900 rounded-2xl border border-slate-700">
+                            <div class="flex justify-between text-xs mb-2"><span class="font-medium">Branch C: Hybrid modular</span> <span class="text-emerald-400">Score: 84</span></div>
+                            <div class="text-xs text-slate-400">Good balance. Slightly more complex initial architecture.</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pt-4 border-t border-slate-700">
+                    <div class="text-xs uppercase tracking-widest mb-2 text-emerald-400">COLLAPSED DECISION</div>
+                    <div class="p-5 bg-emerald-950/40 border border-emerald-900 rounded-2xl">
+                        <div class="font-semibold">Recommended: Branch B — Conservative &amp; Polished</div>
+                        <div class="text-xs mt-2 text-emerald-300">This path best aligns with long-term goals, minimizes future regret, and produces software you will be proud to use daily. Full provenance and simulation traces saved to memory.</div>
+                        
+                        <button onclick="acceptCollapsedDecision(this)" class="mt-4 text-xs px-5 py-2 rounded-2xl bg-emerald-600 text-white">ACCEPT &amp; LOG TO MEMORY</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function acceptCollapsedDecision(el) {
+            el.outerHTML = `<div class="text-emerald-400 text-xs mt-3 font-medium flex items-center gap-x-2"><i class="fa-solid fa-check"></i> Decision logged with full simulation tree. The studio will follow this path.</div>`;
+            
+            setTimeout(() => {
+                showToast("Pre-sim decision captured. This will influence all future agent behavior on related projects.", "success");
+            }, 1200);
+        }
+        
+        // Utility
+        function showToast(message, type = "success") {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-6 right-6 px-6 py-4 rounded-3xl shadow-2xl z-[300] flex items-center gap-x-3 text-sm ${type === 'success' ? 'bg-emerald-600' : type === 'info' ? 'bg-slate-700' : 'bg-amber-600'} text-white`;
+            toast.innerHTML = `
+                <div>${message}</div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.transition = 'all .25s ease';
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 200);
+            }, 4200);
+        }
+        
+        function initializeMetrics() {
+            // Already static in HTML, but could be dynamic
+            const delivered = document.getElementById('projects-delivered');
+            if (delivered) delivered.innerText = '47';
+        }
+        
+        function initializeKanbanAndActivity() {
+            initializeKanban();
+            seedInitialActivity();
+            
+            // Occasional live updates
+            setInterval(() => {
+                if (Math.random() > 0.7 && document.getElementById('live-activity-feed')) {
+                    const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+                    const messages = [
+                        "Refined approach based on latest memory recall.",
+                        "New insight surfaced from previous similar projects.",
+                        "Pre-sim branch evaluation complete.",
+                        "Self-correction applied to recent component."
+                    ];
+                    addLiveActivity(randomAgent.name, messages[Math.floor(Math.random()*messages.length)], randomAgent.status);
+                }
+            }, 22000);
+        }
+        
+        function initializeEverything() {
+            initializeTailwind();
+            initializeAgents();
+            initializeMetrics();
+            initializeKanbanAndActivity();
+            loadMemory();
+            
+            // Keyboard shortcut hint
+            document.addEventListener('keydown', function(e) {
+                if (e.metaKey && e.key === "/") {
+                    e.preventDefault();
+                    const forge = document.getElementById('forge-tab');
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                    forge.classList.remove('hidden');
+                    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active', 'text-white'));
+                    document.querySelectorAll('.nav-tab')[2].classList.add('active', 'text-white');
+                }
+            });
+            
+            // Welcome toast
+            setTimeout(() => {
+                // showToast("Welcome back, itz. DevVille is ready. All systems local and sovereign.", "info");
+            }, 1400);
+            
+            // Make sure dashboard is visible
+            document.getElementById('dashboard-tab').classList.remove('hidden');
+        }
+        
+        function simulateQuickDemo() {
+            document.getElementById('project-name').value = "Personal Decision OS";
+            document.getElementById('project-brief').value = "A beautiful local application that helps track decisions, pre-simulate outcomes, and consolidate wisdom over time using advanced memory architecture.";
+            document.getElementById('tech-stack').value = "tauri-svelte";
+            
+            setTimeout(() => {
+                launchProjectInForge();
+            }, 180);
+        }
+        
+        function launchFromModal() {
+            hideNewProjectModal();
+            
+            const name = document.getElementById('modal-project-name').value || "New Sovereign Project";
+            const brief = document.getElementById('modal-project-brief').value;
+            
+            // Populate forge fields
+            document.getElementById('project-name').value = name;
+            document.getElementById('project-brief').value = brief;
+            
+            // Switch to forge tab
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById('forge-tab').classList.remove('hidden');
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active', 'text-white'));
+            document.querySelectorAll('.nav-tab')[2].classList.add('active', 'text-white');
+            
+            setTimeout(() => {
+                launchProjectInForge();
+            }, 350);
+        }
+        
+        function hideNewProjectModal() {
+            document.getElementById('new-project-modal').classList.add('hidden');
+        }
+        
+        function showNewProjectModal() {
+            document.getElementById('new-project-modal').classList.remove('hidden');
+            document.getElementById('new-project-modal').classList.add('flex');
+        }
+        
+        // Boot the application
+        window.onload = function() {
+            initializeEverything();
+            
+            // Expose some functions for potential future extension
+            window.DevVille = {
+                launchProject: () => document.getElementById('forge-tab').click(),
+                runREM: triggerREMConsolidation,
+                showAgents: () => {
+                    document.querySelectorAll('.nav-tab')[1].click();
+                }
+            };
+            
+            console.log('%c[DevVille] Production-grade local app initialized. GUI-first. Sovereign.', 'color:#64748b');
+        };
+    </script>
+</body>
+</html>
