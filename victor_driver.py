@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from trace0_chronos import sha256_json
 from victor_vehicle import ACTIVE_TASK_TYPES, DEFERRED_TASK_TYPES, DriverControlledVille
@@ -15,8 +15,8 @@ class CapabilityLease:
     lease_id: str = "devville.local-software-build.v1"
     allowed_actions: tuple[str, ...] = (
         "start_project", "heartbeat", "steer", "feedback", "set_focus",
-        "continue_project", "save_project", "load_project", "export_files",
-        "export_logs", "read_status", "pause",
+        "set_time_speed", "continue_project", "save_project", "load_project",
+        "export_files", "export_logs", "read_status", "pause",
     )
     active_task_types: tuple[str, ...] = tuple(sorted(ACTIVE_TASK_TYPES))
     deferred_task_types: tuple[str, ...] = tuple(sorted(DEFERRED_TASK_TYPES))
@@ -99,12 +99,31 @@ class VictorDriver:
             self.mission.status = "failed_to_start"
             self.mission.halt_reason = "vehicle returned no project"
             return None
+
         self.mission.deferred_work = list(self.vehicle.deferred_work)
         self.mission.status = "running"
         self.mission.phase = self._phase()
+        accepted_plan = [
+            {
+                "type": task.get("type"),
+                "description": task.get("description"),
+                "effort": task.get("effort"),
+            }
+            for task in project.tasks
+        ]
+        self._observe(
+            "mission_plan_accepted",
+            f"mission:{mission_id}",
+            {"task_graph": accepted_plan, "deferred_work": self.mission.deferred_work},
+            evidence={"ticket_count": len(project.tickets)},
+            authority="driver_plan_acceptance",
+        )
         self._observe("vehicle_engaged", f"project:{project.name}",
                       {"mission_id": mission_id, "phase": self.mission.phase})
         return project
+
+    def _present_types(self) -> Set[str]:
+        return self.vehicle._present_task_types()
 
     def _done(self, ticket_type: str) -> bool:
         if not self.vehicle.current_project:
@@ -115,15 +134,17 @@ class VictorDriver:
     def _phase(self) -> str:
         if not self.vehicle.current_project:
             return "IDLE"
-        if not self._done("research"):
+        present = self._present_types()
+        if "research" in present and not self._done("research"):
             return "RESEARCH"
-        if not self._done("design"):
+        if "design" in present and not self._done("design"):
             return "ARCHITECTURE"
-        if not (self._done("frontend") and self._done("backend")):
+        build_types = {"frontend", "backend"} & present
+        if any(not self._done(task_type) for task_type in build_types):
             return "BUILD"
-        if not self._done("testing"):
+        if "testing" in present and not self._done("testing"):
             return "VERIFY"
-        if not self._done("beta_testing"):
+        if "beta_testing" in present and not self._done("beta_testing"):
             return "BETA"
         return "VERIFIED_BUILD"
 
@@ -187,6 +208,15 @@ class VictorDriver:
         self._authorize("set_focus", "Update mission focus inside the lease.")
         self.vehicle.set_focus(list(areas))
 
+    def set_time_speed(self, value: float) -> None:
+        self._authorize("set_time_speed", "Change vehicle simulation cadence without bypassing Victor.")
+        speed = float(value)
+        if speed <= 0:
+            raise ValueError("time speed must be positive")
+        self.vehicle.time_speed = speed
+        entity = f"mission:{self.mission.mission_id}" if self.mission else "company:dev-ville"
+        self._observe("time_speed_changed", entity, {"time_speed": speed})
+
     def continue_project(self) -> bool:
         self._authorize("continue_project", "Resume incomplete bounded work.")
         result = self.vehicle.continue_project()
@@ -226,19 +256,40 @@ class VictorDriver:
             core = {key: value for key, value in saved.items() if key != "state_sha256"}
             if saved.get("state_sha256") != sha256_json(core):
                 raise ValueError("Victor Driver snapshot hash mismatch")
+            active_lease = json.loads(json.dumps(self.lease.to_dict()))
+            if core.get("lease") != active_lease:
+                raise ValueError("saved capability lease does not match active Victor Driver lease")
+
         self.vehicle.load_project(filepath)
         project = self.vehicle.current_project
+        if saved:
+            restored_deferred = list(saved.get("deferred_work", []))
+            self.vehicle.deferred_work = restored_deferred
+        else:
+            restored_deferred = list(self.vehicle.deferred_work)
+
         if saved and saved.get("mission"):
             row = saved["mission"]
             self.mission = MissionState(
-                str(row["mission_id"]), str(row["directive"]), str(row.get("status", "running")),
-                self._phase(), int(row.get("cycle", 0)), list(saved.get("deferred_work", [])), row.get("halt_reason"),
+                mission_id=str(row["mission_id"]),
+                directive=str(row["directive"]),
+                status=str(row.get("status", "running")),
+                phase=self._phase(),
+                cycle=int(row.get("cycle", 0)),
+                deferred_work=restored_deferred,
+                halt_reason=row.get("halt_reason"),
             )
             self.paused = bool(saved.get("paused", False))
         elif project:
             mission_id = f"mission_{sha256_json({'directive': project.description, 'project': project.name})[:24]}"
-            self.mission = MissionState(mission_id, project.description, "running", self._phase(),
-                                        deferred_work=list(self.vehicle.deferred_work))
+            self.mission = MissionState(
+                mission_id=mission_id,
+                directive=project.description,
+                status="running",
+                phase=self._phase(),
+                deferred_work=restored_deferred,
+            )
+
         self._authorize("load_project", "Restore completed after preflight lease authorization.")
         self._observe("project_loaded_by_driver", f"project:{project.name}" if project else "company:dev-ville",
                       {"filepath": filepath, "restored_driver_state": bool(saved)},
