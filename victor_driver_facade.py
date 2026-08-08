@@ -7,7 +7,12 @@ from victor_driver import VictorDriver
 
 
 class VictorDriverCompanyFacade:
-    """Expose Company-shaped controls while keeping Victor on the authority path."""
+    """Expose Company-shaped controls while keeping Victor on the authority path.
+
+    Explicit mutators route through `VictorDriver`. Unknown callable vehicle
+    methods are not delegated unless they are read-style `get_*` methods; this
+    prevents a future GUI control from silently acquiring a bypass path.
+    """
 
     def __init__(self, driver: VictorDriver):
         object.__setattr__(self, "driver", driver)
@@ -30,7 +35,7 @@ class VictorDriverCompanyFacade:
 
     @time_speed.setter
     def time_speed(self, value):
-        self.vehicle.time_speed = value
+        self.driver.set_time_speed(float(value))
 
     def start_project(self, directive: str):
         return self.driver.start_project(directive)
@@ -63,4 +68,9 @@ class VictorDriverCompanyFacade:
         return self.driver.export_logs(path)
 
     def __getattr__(self, name: str):
-        return getattr(self.vehicle, name)
+        value = getattr(self.vehicle, name)
+        if callable(value) and not name.startswith("get_"):
+            raise AttributeError(
+                f"vehicle method {name!r} is not exposed through VictorDriverCompanyFacade"
+            )
+        return value
