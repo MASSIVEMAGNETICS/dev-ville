@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - agent/evidence-verification-boundary
+      - agent/victor-topology-kernel
 
 permissions:
   contents: read
@@ -41,13 +42,21 @@ jobs:
             victor_machine_labor.py \
             victor_vehicle.py \
             victor_driver.py \
+            victor_capability_registry.py \
+            victor_world_model.py \
+            victor_mission_compiler.py \
+            victor_choice_kernel.py \
+            victor_outcome_resolver.py \
+            victor_topology_kernel.py \
+            victor_topological_driver.py \
             victor_driver_facade.py \
             victor_drive.py \
             devville_verified.py
 
-      - name: Run evidence and Victor Driver contracts
+      - name: Run evidence, driver, and topology contracts
         run: |
           python -m unittest -v \
             test_verification_boundary.py \
             test_machine_labor_organs.py \
-            test_victor_driver.py
+            test_victor_driver.py \
+            test_victor_topology_kernel.py
