@@ -47,13 +47,14 @@ class VictorSovereignDriver(TopologicalVictorDriver):
         evidence: Optional[Dict[str, Any]] = None,
         authority: str = "driver_decision",
     ) -> None:
+        previous_chain_hash = self.vehicle.chronos.last_chain_hash
         signed_core = {
             "actor": "victor.driver",
             "action": action,
             "entity_id": entity,
             "payload": payload,
             "authority": authority,
-            "chronos_parent": self.vehicle.chronos.last_chain_hash,
+            "chronos_parent": previous_chain_hash,
         }
         proof = self.identity.sign(signed_core)
         self.vehicle.trace0.observe(
@@ -65,12 +66,30 @@ class VictorSovereignDriver(TopologicalVictorDriver):
                 "source": "VictorSovereignDriver",
                 "identity_proof": proof.to_dict(),
                 "signed_core_sha256": sha256_json(signed_core),
+                "chronos_parent_chain_hash": previous_chain_hash,
             },
             evidence=evidence or {},
             authority=authority,
         )
         if hasattr(self, "topology"):
             self.topology.sync_from_chronos(self.vehicle.get_trace0_events())
+
+    def verify_authority_event(self, event: Dict[str, Any]) -> bool:
+        provenance = dict(event.get("provenance") or {})
+        proof = provenance.get("identity_proof")
+        if not proof:
+            return False
+        signed_core = {
+            "actor": event.get("actor"),
+            "action": event.get("action"),
+            "entity_id": event.get("entity_id"),
+            "payload": event.get("payload") or {},
+            "authority": event.get("authority"),
+            "chronos_parent": provenance.get("chronos_parent_chain_hash"),
+        }
+        if provenance.get("signed_core_sha256") != sha256_json(signed_core):
+            return False
+        return self.identity.verify(signed_core, proof)
 
     def save_project(self, filepath: str) -> None:
         super().save_project(filepath)
