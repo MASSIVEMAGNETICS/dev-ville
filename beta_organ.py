@@ -2,7 +2,8 @@
 
 Unlike the legacy beta simulator, this organ never invents bugs or UX scores.
 It executes inspectable scenarios against exact artifact bytes and reports only
-observed pass/fail evidence.
+observed pass/fail evidence. E2E scenarios use an ephemeral loopback HTTP server;
+no external network endpoint is contacted.
 """
 from __future__ import annotations
 
@@ -109,6 +110,81 @@ class ExecutableBetaOrgan:
                 return_code=None,
             )
 
+    @staticmethod
+    def _loopback_harness(backend_module: str, frontend_module: Optional[str]) -> str:
+        frontend_import = (
+            f"front = importlib.import_module({frontend_module!r})\n"
+            if frontend_module else "front = None\n"
+        )
+        frontend_assert = '''
+    if front is not None:
+        controller = front.FrontendController()
+        assert controller.initialize() is True
+        view = controller.render_view("e2e", fetched)
+        assert view["data"]["data"]["value"] == 7, view
+'''
+        return f'''
+import importlib
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.request import Request, urlopen
+
+back = importlib.import_module({backend_module!r})
+{frontend_import}service = back.BackendService()
+assert service.start() is True
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def _send_result(self, result):
+        status = int(result.get("status", 500))
+        payload = json.dumps(result).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b"{{}}"
+        data = json.loads(raw.decode("utf-8"))
+        self._send_result(service.process_request("POST", self.path, data))
+
+    def do_GET(self):
+        self._send_result(service.process_request("GET", self.path))
+
+
+server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+thread = threading.Thread(target=server.serve_forever, daemon=True)
+thread.start()
+try:
+    base = f"http://127.0.0.1:{{server.server_port}}"
+    request = Request(
+        base + "/e2e",
+        data=json.dumps({{"value": 7}}).encode("utf-8"),
+        headers={{"Content-Type": "application/json"}},
+        method="POST",
+    )
+    with urlopen(request, timeout=2.0) as response:
+        created = json.loads(response.read().decode("utf-8"))
+    assert created.get("status") == 201, created
+
+    with urlopen(base + "/e2e", timeout=2.0) as response:
+        fetched = json.loads(response.read().decode("utf-8"))
+    assert fetched.get("status") == 200, fetched
+    assert fetched["data"]["value"] == 7, fetched
+{frontend_assert}
+    print("LOOPBACK_HTTP_E2E_OK")
+finally:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=2.0)
+'''
+
     def run(self, files: Sequence[Dict[str, Any]]) -> BetaReceipt:
         scenarios: List[ScenarioResult] = []
         try:
@@ -156,17 +232,26 @@ class ExecutableBetaOrgan:
                 result = self._run(tmp, [sys.executable, name])
                 scenarios.append(ScenarioResult(f"entrypoint:{name}", result.passed, True, result.detail, result.return_code))
 
-            if frontend_module and backend_module:
-                harness = f'''\nimport importlib\nfront = importlib.import_module({frontend_module!r})\nback = importlib.import_module({backend_module!r})\nservice = back.BackendService()\nassert service.start() is True\ncreated = service.process_request("POST", "/e2e", {{"value": 7}})\nassert created.get("status") == 201, created\nfetched = service.process_request("GET", "/e2e")\nassert fetched.get("status") == 200, fetched\ncontroller = front.FrontendController()\nassert controller.initialize() is True\nview = controller.render_view("e2e", fetched)\nassert view["data"]["data"]["value"] == 7, view\nprint("E2E_OK")\n'''
+            if backend_module:
+                harness = self._loopback_harness(backend_module, frontend_module)
                 Path(tmp, "_devville_e2e.py").write_text(harness, encoding="utf-8")
                 result = self._run(tmp, [sys.executable, "_devville_e2e.py"])
-                scenarios.append(ScenarioResult("frontend_backend_e2e", result.passed, True, result.detail, result.return_code))
+                scenario_name = "frontend_backend_e2e" if frontend_module else "backend_http_e2e"
+                scenarios.append(
+                    ScenarioResult(
+                        scenario_name,
+                        result.passed,
+                        True,
+                        result.detail,
+                        result.return_code,
+                    )
+                )
             else:
                 scenarios.append(ScenarioResult(
                     "frontend_backend_e2e",
                     True,
                     False,
-                    "not applicable: both FrontendController and BackendService were not present in this bundle",
+                    "not applicable: no BackendService was present in this bundle",
                 ))
 
         return self._receipt(artifact_sha, scenarios)
