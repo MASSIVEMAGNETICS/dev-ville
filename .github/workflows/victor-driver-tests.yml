@@ -49,6 +49,7 @@ jobs:
             victor_mission_compiler.py \
             victor_choice_kernel.py \
             victor_outcome_resolver.py \
+            victor_learning.py \
             victor_topology_kernel.py \
             victor_topological_driver.py \
             victor_identity_kernel.py \
@@ -57,11 +58,12 @@ jobs:
             victor_drive.py \
             devville_verified.py
 
-      - name: Run evidence, driver, topology, and identity contracts
+      - name: Run evidence, driver, topology, identity, and learning contracts
         run: |
           python -m unittest -v \
             test_verification_boundary.py \
             test_machine_labor_organs.py \
             test_victor_driver.py \
             test_victor_topology_kernel.py \
-            test_victor_identity_kernel.py
+            test_victor_identity_kernel.py \
+            test_victor_learning.py
