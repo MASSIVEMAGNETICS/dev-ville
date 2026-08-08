@@ -133,7 +133,8 @@ class TopologicalDriverTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = f"{tmp}/project.json"
             driver.save_project(path)
-            saved = json.loads(open(path, "r", encoding="utf-8").read())
+            with open(path, "r", encoding="utf-8") as handle:
+                saved = json.load(handle)
             self.assertIn("victor_topology", saved)
 
             restored = TopologicalVictorDriver()
