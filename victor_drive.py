@@ -1,16 +1,16 @@
-"""Headless Victor Driver entrypoint for Dev-Ville."""
+"""Headless topological Victor Driver entrypoint for Dev-Ville."""
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 
-from victor_driver import VictorDriver
+from victor_topological_driver import TopologicalVictorDriver
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Dev-Ville with Victor as the governed driver."
+        description="Run Dev-Ville with topological Victor as the governed driver."
     )
     parser.add_argument("directive", help="Software-build mission directive")
     parser.add_argument(
@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    driver = VictorDriver(chronos_jsonl_path=args.chronos)
+    driver = TopologicalVictorDriver(chronos_jsonl_path=args.chronos)
     driver.start_project(args.directive)
     result = driver.run(max_cycles=args.max_cycles, time_delta=args.time_delta)
     if result.get("authoritative_build_complete") and args.export_dir:
