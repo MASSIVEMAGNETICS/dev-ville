@@ -2,7 +2,9 @@ name: Victor Driver Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - agent/evidence-verification-boundary
   push:
     branches:
       - agent/evidence-verification-boundary
