@@ -16,6 +16,7 @@ class PlanEvaluation:
     capability_coverage: float
     goal_coverage: float
     total_effort: float
+    learned_success_rate: Optional[float]
     missing_task_types: tuple[str, ...]
     violations: tuple[str, ...]
     reasons: tuple[str, ...]
@@ -79,7 +80,15 @@ class ChoiceKernel:
 
         return all(visit(node) for node in task_types)
 
-    def evaluate(self, intent: MissionIntent, plan: CandidatePlan, registry: CapabilityRegistry, *, lease_active_task_types: Iterable[str]) -> PlanEvaluation:
+    def evaluate(
+        self,
+        intent: MissionIntent,
+        plan: CandidatePlan,
+        registry: CapabilityRegistry,
+        *,
+        lease_active_task_types: Iterable[str],
+        learned_success_rate: Optional[float] = None,
+    ) -> PlanEvaluation:
         task_types = set(plan.task_types)
         capability = registry.assess(task_types, lease_active_task_types=lease_active_task_types)
         required_goals = self._required_goal_types(intent)
@@ -106,6 +115,10 @@ class ChoiceKernel:
             f"capability_coverage={capability.coverage_ratio:.3f}",
             f"total_effort={plan.total_effort:.1f}",
         ]
+        if learned_success_rate is None:
+            reasons.append("learned_route_preference=insufficient_history")
+        else:
+            reasons.append(f"learned_route_preference={learned_success_rate:.3f}")
         if capability.missing_task_types:
             reasons.append("missing_capabilities=" + ",".join(capability.missing_task_types))
         reasons.extend(violations)
@@ -117,13 +130,32 @@ class ChoiceKernel:
             capability_coverage=round(capability.coverage_ratio, 6),
             goal_coverage=round(goal_coverage, 6),
             total_effort=plan.total_effort,
+            learned_success_rate=(round(learned_success_rate, 6) if learned_success_rate is not None else None),
             missing_task_types=capability.missing_task_types,
             violations=tuple(violations),
             reasons=tuple(reasons),
         )
 
-    def choose(self, intent: MissionIntent, plans: Sequence[CandidatePlan], registry: CapabilityRegistry, *, lease_active_task_types: Iterable[str]) -> ChoiceDecision:
-        evaluations = tuple(self.evaluate(intent, plan, registry, lease_active_task_types=lease_active_task_types) for plan in plans)
+    def choose(
+        self,
+        intent: MissionIntent,
+        plans: Sequence[CandidatePlan],
+        registry: CapabilityRegistry,
+        *,
+        lease_active_task_types: Iterable[str],
+        learned_preferences: Optional[Dict[str, float]] = None,
+    ) -> ChoiceDecision:
+        preferences = learned_preferences or {}
+        evaluations = tuple(
+            self.evaluate(
+                intent,
+                plan,
+                registry,
+                lease_active_task_types=lease_active_task_types,
+                learned_success_rate=preferences.get(plan.plan_id),
+            )
+            for plan in plans
+        )
         feasible = [evaluation for evaluation in evaluations if evaluation.feasible]
         if not feasible:
             return ChoiceDecision(
@@ -132,10 +164,18 @@ class ChoiceKernel:
                 decision_status="no_feasible_route",
                 reason="No candidate satisfies current goals, dependencies, and capability lease.",
             )
-        selected = sorted(feasible, key=lambda row: (-row.utility_score, row.total_effort, row.plan_id))[0]
+
+        def ranking(row: PlanEvaluation):
+            learned = row.learned_success_rate if row.learned_success_rate is not None else -1.0
+            return (-row.utility_score, -learned, row.total_effort, row.plan_id)
+
+        selected = sorted(feasible, key=ranking)[0]
         return ChoiceDecision(
             selected_plan_id=selected.plan_id,
             evaluations=evaluations,
             decision_status="selected",
-            reason="Selected highest deterministic utility among routes that fully satisfy goal and capability constraints.",
+            reason=(
+                "Selected highest deterministic present-time utility; sufficiently sampled "
+                "historical route success is used only as a tie-breaker."
+            ),
         )
