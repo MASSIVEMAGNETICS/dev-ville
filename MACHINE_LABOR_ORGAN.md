@@ -95,3 +95,13 @@ Verified DONE / REWORK          │
 This slice does **not** yet make the CEO/planner intelligent, make deployment real, provide signed actor identity, or provide an OS-grade untrusted-code sandbox. The existing code-generation templates also remain templates rather than a sovereign coding model.
 
 Those boundaries must remain explicit until replaced.
+
+## Authoritative project completion
+
+The legacy scheduler can finish task progress before evidence review finishes. The Victor runtime therefore suppresses `project_completed` while any ticket is not `done` and exposes the project as `verification_pending`.
+
+Research tickets complete from hashed research evidence. QA tickets are satisfied only after the code tickets have passed the evidence-backed verification boundary. Beta tickets complete only from a passing executable beta receipt.
+
+Deployment and marketing remain explicitly simulation-only in this slice. Their tickets are blocked rather than counterfeited as complete, which means an end-to-end project cannot claim authoritative completion until those organs are replaced with real external execution receipts.
+
+Beta progress is also frozen until design/frontend/backend artifact tasks have actually finished, preventing the old race where beta testing could complete before the software existed.
