@@ -49,16 +49,19 @@ class VictorWorldModel:
 
     def _upsert_node(self, node_id: str, node_type: str, attributes: Optional[Dict[str, Any]], event_id: Optional[str]) -> None:
         node_id = str(node_id)
+        node_type = str(node_type)
         attrs = dict(attributes or {})
         existing = self.nodes.get(node_id)
         if existing:
-            if existing.node_type != node_type and node_type != "entity":
+            if existing.node_type == "entity" and node_type != "entity":
+                existing.node_type = node_type
+            elif existing.node_type != node_type and node_type != "entity":
                 raise ValueError(f"node {node_id!r} type conflict: {existing.node_type!r} vs {node_type!r}")
             existing.attributes.update(attrs)
             existing.last_event_id = event_id
             existing.version += 1
             return
-        self.nodes[node_id] = GraphNode(node_id=node_id, node_type=str(node_type), attributes=attrs, last_event_id=event_id)
+        self.nodes[node_id] = GraphNode(node_id=node_id, node_type=node_type, attributes=attrs, last_event_id=event_id)
 
     def _add_edge(self, source: str, target: str, edge_type: str, attributes: Optional[Dict[str, Any]], event_id: Optional[str]) -> str:
         source = str(source)
