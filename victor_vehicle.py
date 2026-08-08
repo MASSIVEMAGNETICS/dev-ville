@@ -1,8 +1,11 @@
 """Driver-controlled Dev-Ville vehicle."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+from agents import Ticket
+from company import Project
 from victor_machine_labor import VictorMachineLaborCompany
 
 ACTIVE_TASK_TYPES = frozenset({"research", "design", "frontend", "backend", "testing", "beta_testing"})
@@ -52,10 +55,82 @@ class DriverControlledVille(VictorMachineLaborCompany):
         )
 
     def start_project(self, directive: str):
+        """Legacy compatibility path; VictorDriver uses start_project_from_plan."""
         project = super().start_project(directive)
         if project:
             self._scope("start_project")
         return project
+
+    def start_project_from_plan(
+        self,
+        directive: str,
+        tasks: List[Dict[str, Any]],
+        deferred_work: Optional[List[Dict[str, Any]]] = None,
+    ) -> Project:
+        """Start from a Victor-authored DAG without invoking the legacy planner."""
+        normalized: List[Dict[str, Any]] = []
+        for source in tasks:
+            task = dict(source)
+            task_type = str(task.get("type", ""))
+            if task_type not in ACTIVE_TASK_TYPES:
+                raise ValueError(f"Victor plan contains unsupported active task type: {task_type!r}")
+            effort = float(task.get("effort", 0))
+            if effort <= 0:
+                raise ValueError(f"Victor plan task {task_type!r} has non-positive effort")
+            task["effort"] = effort
+            task["progress"] = float(task.get("progress", 0))
+            task["assigned_to"] = None
+            normalized.append(task)
+
+        self._observe(
+            "directive_received",
+            "company:dev-ville",
+            {"directive": directive, "planner": "victor.mission_compiler"},
+            authority="human_directive_observed",
+        )
+        self.current_project = Project(
+            name=f"Project-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+            description=directive,
+        )
+        self.current_project.tasks = normalized
+        self.deferred_work = [dict(row) for row in (deferred_work or [])]
+
+        # Before tickets exist, DriverControlledVille.assign_tasks releases only
+        # research; every downstream task remains locked behind evidence gates.
+        self.assign_tasks(self.current_project.tasks)
+        for task in self.current_project.tasks:
+            ticket = Ticket(
+                title=task.get("description", "Untitled"),
+                description=(
+                    f"Victor task: {task.get('description', '')} "
+                    f"(type: {task.get('type', '')}; id: {task.get('victor_task_id', '')})"
+                ),
+                ticket_type=task.get("type", "general"),
+                priority="high" if task.get("type") in {"backend", "frontend"} else "normal",
+                assigned_to=task.get("assigned_to"),
+            )
+            if task.get("assigned_to"):
+                ticket.assign(str(task["assigned_to"]))
+            self.current_project.tickets.append(ticket)
+
+        self.demo_recorder.record_event(
+            "project_started",
+            f"Victor-authored project started: {directive}",
+            {"project_name": self.current_project.name, "planner": "victor.mission_compiler"},
+        )
+        self.current_project.calculate_progress()
+        self._observe(
+            "project_started",
+            f"project:{self.current_project.name}",
+            {
+                "description": directive,
+                "task_count": len(self.current_project.tasks),
+                "planner": "victor.mission_compiler",
+                "deferred_work_count": len(self.deferred_work),
+            },
+            authority="driver_plan_execution",
+        )
+        return self.current_project
 
     def load_project(self, filepath: str):
         super().load_project(filepath)
@@ -85,9 +160,7 @@ class DriverControlledVille(VictorMachineLaborCompany):
             return True
         tickets = self._tickets(effective_required)
         ticket_types = {ticket.ticket_type for ticket in tickets}
-        return effective_required.issubset(ticket_types) and all(
-            ticket.status == "done" for ticket in tickets
-        )
+        return effective_required.issubset(ticket_types) and all(ticket.status == "done" for ticket in tickets)
 
     def assign_tasks(self, tasks: List[Dict[str, Any]]):
         if not self.current_project:
@@ -110,10 +183,7 @@ class DriverControlledVille(VictorMachineLaborCompany):
                 assignee = task.get("assigned_to")
                 if not assignee:
                     continue
-                ticket = next(
-                    (row for row in self.current_project.tickets if row.title == task.get("description")),
-                    None,
-                )
+                ticket = next((row for row in self.current_project.tickets if row.title == task.get("description")), None)
                 if not ticket or ticket.status not in {"open", "in_progress"}:
                     continue
                 if ticket.status == "open" or ticket.assigned_to != assignee:
@@ -165,10 +235,7 @@ class DriverControlledVille(VictorMachineLaborCompany):
         super().work_cycle(time_delta)
         self._materialize_verification_qa()
         if self.current_project:
-            idle = [
-                task for task in self.current_project.tasks
-                if task.get("progress", 0) < task.get("effort", 100) and not task.get("assigned_to")
-            ]
+            idle = [task for task in self.current_project.tasks if task.get("progress", 0) < task.get("effort", 100) and not task.get("assigned_to")]
             if idle:
                 self.assign_tasks(idle)
             self.current_project.calculate_progress()
@@ -181,6 +248,4 @@ class DriverControlledVille(VictorMachineLaborCompany):
         expected = self._present_task_types()
         active = [ticket for ticket in self.current_project.tickets if ticket.ticket_type in expected]
         ticket_types = {ticket.ticket_type for ticket in active}
-        return bool(expected) and expected.issubset(ticket_types) and all(
-            ticket.status == "done" for ticket in active
-        )
+        return bool(expected) and expected.issubset(ticket_types) and all(ticket.status == "done" for ticket in active)
