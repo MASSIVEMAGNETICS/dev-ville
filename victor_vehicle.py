@@ -33,8 +33,7 @@ class DriverControlledVille(VictorMachineLaborCompany):
             return
         project = self.current_project
         deferred = [dict(task) for task in project.tasks if task.get("type") in DEFERRED_TASK_TYPES]
-        if deferred:
-            self.deferred_work = deferred
+        self.deferred_work = deferred
         project.tasks = [task for task in project.tasks if task.get("type") in ACTIVE_TASK_TYPES]
         project.tickets = [ticket for ticket in project.tickets if ticket.ticket_type in ACTIVE_TASK_TYPES]
         project.calculate_progress()
@@ -42,7 +41,11 @@ class DriverControlledVille(VictorMachineLaborCompany):
             actor="victor.driver.vehicle_gate",
             action="authoritative_scope_applied",
             entity_id=f"project:{project.name}",
-            payload={"active": sorted(ACTIVE_TASK_TYPES), "deferred": sorted(DEFERRED_TASK_TYPES), "source": source},
+            payload={
+                "active": sorted(self._present_task_types()),
+                "deferred": sorted({task.get("type") for task in deferred if task.get("type")}),
+                "source": source,
+            },
             provenance={"source": f"DriverControlledVille.{source}"},
             evidence={"deferred_work": self.deferred_work},
             authority="driver_scope_gate",
@@ -58,6 +61,15 @@ class DriverControlledVille(VictorMachineLaborCompany):
         super().load_project(filepath)
         self._scope("load_project")
 
+    def _present_task_types(self) -> Set[str]:
+        if not self.current_project:
+            return set()
+        return {
+            str(task.get("type"))
+            for task in self.current_project.tasks
+            if task.get("type") in ACTIVE_TASK_TYPES
+        }
+
     def _tickets(self, types: Iterable[str]) -> List[Any]:
         if not self.current_project:
             return []
@@ -68,10 +80,12 @@ class DriverControlledVille(VictorMachineLaborCompany):
         required = DEPENDENCIES.get(task_type)
         if required is None:
             return False
-        if not required:
+        effective_required = set(required) & self._present_task_types()
+        if not effective_required:
             return True
-        tickets = self._tickets(required)
-        return required.issubset({ticket.ticket_type for ticket in tickets}) and all(
+        tickets = self._tickets(effective_required)
+        ticket_types = {ticket.ticket_type for ticket in tickets}
+        return effective_required.issubset(ticket_types) and all(
             ticket.status == "done" for ticket in tickets
         )
 
@@ -100,7 +114,9 @@ class DriverControlledVille(VictorMachineLaborCompany):
                     (row for row in self.current_project.tickets if row.title == task.get("description")),
                     None,
                 )
-                if ticket and (ticket.status == "open" or ticket.assigned_to != assignee):
+                if not ticket or ticket.status not in {"open", "in_progress"}:
+                    continue
+                if ticket.status == "open" or ticket.assigned_to != assignee:
                     ticket.assign(str(assignee))
 
     def _materialize_verification_qa(self) -> None:
@@ -112,13 +128,18 @@ class DriverControlledVille(VictorMachineLaborCompany):
         if not task or not ticket or ticket.status == "done":
             return
 
-        code_tickets = self._tickets({"design", "frontend", "backend"})
+        present_code_types = {"design", "frontend", "backend"} & self._present_task_types()
+        code_tickets = self._tickets(present_code_types)
+        code_ticket_types = {row.ticket_type for row in code_tickets}
+        if not present_code_types or not present_code_types.issubset(code_ticket_types):
+            return
+
         passed_ids = {
             int(receipt["ticket_id"])
             for receipt in self.verification_receipts
             if receipt.get("passed") is True and receipt.get("ticket_id") is not None
         }
-        if not code_tickets or any(code.id not in passed_ids for code in code_tickets):
+        if any(code.id not in passed_ids for code in code_tickets):
             return
 
         task["assigned_to"] = self.VERIFICATION_GATE_ACTOR
@@ -157,5 +178,9 @@ class DriverControlledVille(VictorMachineLaborCompany):
     def authoritative_build_complete(self) -> bool:
         if not self.current_project or not self.current_project.tickets:
             return False
-        active = [ticket for ticket in self.current_project.tickets if ticket.ticket_type in ACTIVE_TASK_TYPES]
-        return bool(active) and all(ticket.status == "done" for ticket in active)
+        expected = self._present_task_types()
+        active = [ticket for ticket in self.current_project.tickets if ticket.ticket_type in expected]
+        ticket_types = {ticket.ticket_type for ticket in active}
+        return bool(expected) and expected.issubset(ticket_types) and all(
+            ticket.status == "done" for ticket in active
+        )
