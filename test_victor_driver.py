@@ -43,6 +43,18 @@ class VictorDriverContractTests(unittest.TestCase):
         )
         self.assertEqual(design_ticket.status, "in_progress")
 
+    def test_api_only_build_does_not_deadlock_waiting_for_frontend(self):
+        driver = VictorDriver()
+        project = driver.start_project("Create a backend API")
+        present = {task.get("type") for task in project.tasks}
+        self.assertNotIn("frontend", present)
+
+        for ticket in project.tickets:
+            if ticket.ticket_type in {"research", "design", "backend"}:
+                ticket.complete()
+        self.assertEqual(driver._phase(), "VERIFY")
+        self.assertTrue(driver.vehicle._deps_done("testing"))
+
     def test_testing_phase_is_materialized_from_real_code_receipts(self):
         driver = VictorDriver()
         project = driver.start_project("Create a simple website")
@@ -82,15 +94,25 @@ class VictorDriverContractTests(unittest.TestCase):
         facade = VictorDriverCompanyFacade(driver)
         project = facade.start_project("Create a backend API")
         self.assertIs(project, driver.vehicle.current_project)
+        facade.time_speed = 2.0
+        self.assertEqual(driver.vehicle.time_speed, 2.0)
         facade.work_cycle(0.1)
         self.assertEqual(driver.mission.cycle, 1)
         actions = [event.get("action") for event in driver.vehicle.get_trace0_events()]
         self.assertIn("authority_decision", actions)
+        self.assertIn("time_speed_changed", actions)
         self.assertIn("heartbeat_started", actions)
 
-    def test_driver_state_is_hash_bound_in_project_snapshot(self):
+    def test_facade_rejects_unrouted_vehicle_mutator(self):
+        driver = VictorDriver()
+        facade = VictorDriverCompanyFacade(driver)
+        with self.assertRaises(AttributeError):
+            facade.start_demo_recording()
+
+    def test_driver_state_is_hash_bound_and_deferred_work_survives_reload(self):
         driver = VictorDriver()
         driver.start_project("Create a backend API")
+        self.assertEqual(len(driver.vehicle.deferred_work), 2)
         with tempfile.TemporaryDirectory() as tmp:
             path = f"{tmp}/project.json"
             driver.save_project(path)
@@ -98,6 +120,8 @@ class VictorDriverContractTests(unittest.TestCase):
             restored.load_project(path)
             self.assertIsNotNone(restored.mission)
             self.assertEqual(restored.mission.directive, "Create a backend API")
+            self.assertEqual(len(restored.vehicle.deferred_work), 2)
+            self.assertEqual(restored.mission.deferred_work, restored.vehicle.deferred_work)
             self.assertTrue(restored.vehicle.verify_chronos())
 
 
