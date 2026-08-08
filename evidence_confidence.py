@@ -7,7 +7,6 @@ This prevents arbitrary "92% confidence" values from masquerading as truth.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import math
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 
@@ -35,7 +34,9 @@ class EvidenceItem:
             self.reproducibility,
             self.freshness,
         )
-        product = math.prod(values)
+        product = 1.0
+        for value in values:
+            product *= value
         return product ** (1.0 / len(values)) if product > 0 else 0.0
 
 
