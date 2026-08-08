@@ -23,7 +23,7 @@ from beta_organ import ExecutableBetaOrgan
 from evidence_confidence import ConfidenceCalibrator
 from machine_labor_organs import EvidenceResearcherAgent, ExecutableBetaTesterAgent
 from research_organ import EvidenceResearchOrgan
-from trace0_chronos import ChronosLedger, Trace0Observer
+from trace0_chronos import ChronosLedger, Trace0Observer, sha256_json
 from verified_company import VerifiedCompany
 
 
@@ -122,12 +122,160 @@ class VictorMachineLaborCompany(VerifiedCompany):
             )
         return project
 
+    def _development_artifacts_ready(self) -> bool:
+        if not self.current_project:
+            return False
+        required = [
+            task for task in self.current_project.tasks
+            if task.get("type") in {"design", "frontend", "backend"}
+        ]
+        return bool(required) and all(
+            task.get("progress", 0) >= task.get("effort", 100) for task in required
+        )
+
+    def work_cycle(self, time_delta: float):
+        ready = self._development_artifacts_ready()
+        for agent in self.agents:
+            if isinstance(agent, ExecutableBetaTesterAgent):
+                agent.productivity = 1.0 if ready else 0.0
+        super().work_cycle(time_delta)
+        if self.current_project and self.current_project.progress >= 100:
+            if any(ticket.status != "done" for ticket in self.current_project.tickets):
+                self.current_project.status = "verification_pending"
+
     def _emit_event(self, event_name: str, data: Dict[str, Any]):
+        if (
+            event_name == "project_completed"
+            and self.current_project
+            and any(ticket.status != "done" for ticket in self.current_project.tickets)
+        ):
+            self._observe(
+                "project_completion_blocked",
+                f"project:{self.current_project.name}",
+                {
+                    "reason": "authoritative tickets remain unverified",
+                    "open_ticket_ids": [
+                        ticket.id for ticket in self.current_project.tickets if ticket.status != "done"
+                    ],
+                },
+                authority="verification_gate",
+            )
+            return
         super()._emit_event(event_name, data)
         entity = "company:dev-ville"
         if getattr(self, "current_project", None):
             entity = f"project:{self.current_project.name}"
         self._observe(event_name, entity, data)
+
+    def _latest_research_finding(self, ticket: Any) -> Optional[Dict[str, Any]]:
+        for agent in self.agents:
+            if isinstance(agent, EvidenceResearcherAgent):
+                for finding in reversed(agent.research_findings):
+                    if finding.get("task") == ticket.title:
+                        return finding
+        return None
+
+    def _latest_beta_report(self, ticket: Any) -> Optional[Dict[str, Any]]:
+        for agent in self.agents:
+            if isinstance(agent, ExecutableBetaTesterAgent):
+                for report in reversed(agent.test_reports):
+                    if report.get("task") == ticket.title:
+                        return report
+        return None
+
+    def _complete_evidence_ticket(
+        self, supervisor: SupervisorAgent, ticket: Any, evidence: Dict[str, Any], kind: str
+    ) -> None:
+        evidence_hash = sha256_json(evidence)
+        notes = f"{kind} evidence accepted; evidence_sha256={evidence_hash}"
+        ticket.approve(supervisor.name, notes)
+        ticket.complete()
+        ticket.history.append({
+            "action": f"{kind}_evidence_receipt",
+            "detail": notes,
+            "evidence_sha256": evidence_hash,
+            "evidence": evidence,
+        })
+        supervisor.reviews_completed.append({
+            "ticket_id": ticket.id,
+            "ticket_title": ticket.title,
+            "passed": True,
+            "notes": notes,
+            "evidence_sha256": evidence_hash,
+        })
+        self._observe(
+            f"{kind}_ticket_verified",
+            f"ticket:{ticket.id}",
+            {"ticket_title": ticket.title, "evidence_sha256": evidence_hash},
+            evidence=evidence,
+            authority="verified_evidence_gate",
+        )
+
+    def _supervisor_review_cycle(self, supervisor: SupervisorAgent):
+        if not self.current_project:
+            return
+        ticket = next((t for t in self.current_project.tickets if t.status == "in_review"), None)
+        if ticket is None:
+            return
+
+        if ticket.ticket_type == "research":
+            finding = self._latest_research_finding(ticket)
+            if finding and finding.get("evidence"):
+                self._complete_evidence_ticket(supervisor, ticket, finding, "research")
+            else:
+                ticket.reject(supervisor.name, "Research evidence missing; returned to rework")
+                self._reset_task_for_rework(ticket)
+            return
+
+        if ticket.ticket_type == "beta_testing":
+            report = self._latest_beta_report(ticket)
+            receipt = report.get("beta_receipt") if report else None
+            if receipt and receipt.get("passed") is True:
+                self._complete_evidence_ticket(supervisor, ticket, receipt, "beta")
+            else:
+                detail = "Executable beta evidence missing or failed; returned to rework"
+                ticket.reject(supervisor.name, detail)
+                self._reset_task_for_rework(ticket)
+                self._observe(
+                    "beta_ticket_rejected",
+                    f"ticket:{ticket.id}",
+                    {"ticket_title": ticket.title, "reason": detail},
+                    evidence=receipt or {},
+                    authority="verified_evidence_gate",
+                )
+            return
+
+        if ticket.ticket_type == "testing":
+            code_tickets = [
+                t for t in self.current_project.tickets
+                if t.ticket_type in {"design", "frontend", "backend"}
+            ]
+            if code_tickets and all(t.status == "done" for t in code_tickets):
+                evidence = {
+                    "superseded_by": "evidence_backed_verification_boundary",
+                    "verified_ticket_ids": [t.id for t in code_tickets],
+                    "verification_receipts": [
+                        r for r in self.verification_receipts
+                        if r.get("ticket_id") in {t.id for t in code_tickets}
+                    ],
+                }
+                self._complete_evidence_ticket(supervisor, ticket, evidence, "qa")
+            return
+
+        if ticket.ticket_type in {"deployment", "marketing"}:
+            ticket.reject(
+                supervisor.name,
+                f"{ticket.ticket_type} remains simulation-only; authoritative evidence required",
+            )
+            self._observe(
+                "unsupported_synthetic_ticket_blocked",
+                f"ticket:{ticket.id}",
+                {"ticket_title": ticket.title, "ticket_type": ticket.ticket_type},
+                authority="verification_gate",
+            )
+            return
+
+        super()._supervisor_review_cycle(supervisor)
 
     def _record_receipt(self, ticket: Any, receipt: Any) -> None:
         super()._record_receipt(ticket, receipt)
@@ -229,7 +377,9 @@ class VictorMachineLaborCompany(VerifiedCompany):
             "average_calibrated_confidence": (
                 round(sum(calibrated) / len(calibrated), 6) if calibrated else None
             ),
-            "calibration_status": "empirically_calibrated" if calibrated else "uncalibrated",
+            "calibration_status": (
+                "empirically_calibrated" if calibrated else "uncalibrated"
+            ),
             "findings": findings,
         }
 
