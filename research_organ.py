@@ -12,7 +12,7 @@ import importlib.util
 import platform
 import shutil
 import sys
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from evidence_confidence import ConfidenceCalibrator, EvidenceItem
 
@@ -42,8 +42,14 @@ class ResearchResult:
     alternatives: List[str]
     evidence: List[Dict[str, Any]]
     evidence_strength: float
+    support_weight: float
+    contradiction_weight: float
     confidence: Optional[float]
+    confidence_interval_95: Optional[Tuple[float, float]]
     calibration_status: str
+    calibration_samples: int
+    local_bin_samples: int
+    brier_score: Optional[float]
     unknowns: List[str]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -142,6 +148,10 @@ class EvidenceResearchOrgan:
                 unknowns.append("Available candidates are tied on collected evidence; no evidence-backed winner is claimed.")
             else:
                 unknowns.append("No locally available candidate was found for this project type.")
+        if confidence.confidence is None:
+            unknowns.append(
+                "No calibrated probability is claimed until both global and matching-bin outcome support are sufficient."
+            )
 
         return ResearchResult(
             project_type=project_type,
@@ -149,7 +159,13 @@ class EvidenceResearchOrgan:
             alternatives=alternatives,
             evidence=[asdict(row) for row in evidence_rows],
             evidence_strength=confidence.evidence_strength,
+            support_weight=confidence.support_weight,
+            contradiction_weight=confidence.contradiction_weight,
             confidence=confidence.confidence,
+            confidence_interval_95=confidence.confidence_interval_95,
             calibration_status=confidence.calibration_status,
+            calibration_samples=confidence.calibration_samples,
+            local_bin_samples=confidence.local_bin_samples,
+            brier_score=confidence.brier_score,
             unknowns=unknowns,
         )
