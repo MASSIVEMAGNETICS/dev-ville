@@ -51,14 +51,17 @@ jobs:
             victor_outcome_resolver.py \
             victor_topology_kernel.py \
             victor_topological_driver.py \
+            victor_identity_kernel.py \
+            victor_sovereign_driver.py \
             victor_driver_facade.py \
             victor_drive.py \
             devville_verified.py
 
-      - name: Run evidence, driver, and topology contracts
+      - name: Run evidence, driver, topology, and identity contracts
         run: |
           python -m unittest -v \
             test_verification_boundary.py \
             test_machine_labor_organs.py \
             test_victor_driver.py \
-            test_victor_topology_kernel.py
+            test_victor_topology_kernel.py \
+            test_victor_identity_kernel.py
