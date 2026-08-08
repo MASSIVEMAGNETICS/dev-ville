@@ -1,10 +1,10 @@
-"""Launch Dev-Ville with topological Victor as driver and Dev-Ville as vehicle."""
+"""Launch Dev-Ville with sovereign topological Victor as driver."""
 import os
 import tkinter as tk
 
 from devville import DevVilleApp
 from victor_driver_facade import VictorDriverCompanyFacade
-from victor_topological_driver import TopologicalVictorDriver
+from victor_sovereign_driver import VictorSovereignDriver
 
 
 class VerifiedDevVilleApp(DevVilleApp):
@@ -13,9 +13,13 @@ class VerifiedDevVilleApp(DevVilleApp):
     def __init__(self, root: tk.Tk):
         super().__init__(root)
         chronos_path = os.environ.get("DEVVILLE_CHRONOS_PATH", "chronos/devville.jsonl")
-        self.driver = TopologicalVictorDriver(chronos_jsonl_path=chronos_path)
+        identity_path = os.environ.get("VICTOR_IDENTITY_KEY_PATH", "identity/victor.key")
+        self.driver = VictorSovereignDriver(
+            chronos_jsonl_path=chronos_path,
+            identity_key_path=identity_path,
+        )
         self.company = VictorDriverCompanyFacade(self.driver)
-        self.root.title("Dev-Ville - Topological Victor Driver / Machine-Labor Vehicle")
+        self.root.title("Dev-Ville - Sovereign Victor Driver / Machine-Labor Vehicle")
         self.update_ui()
 
 
