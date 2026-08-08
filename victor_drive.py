@@ -1,22 +1,27 @@
-"""Headless topological Victor Driver entrypoint for Dev-Ville."""
+"""Headless sovereign topological Victor Driver entrypoint for Dev-Ville."""
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 
-from victor_topological_driver import TopologicalVictorDriver
+from victor_sovereign_driver import VictorSovereignDriver
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Dev-Ville with topological Victor as the governed driver."
+        description="Run Dev-Ville with sovereign topological Victor as the governed driver."
     )
     parser.add_argument("directive", help="Software-build mission directive")
     parser.add_argument(
         "--chronos",
         default="chronos/victor-devville.jsonl",
         help="Append-only Chronos JSONL path",
+    )
+    parser.add_argument(
+        "--identity-key",
+        default="identity/victor.key",
+        help="Persistent local Victor identity key path",
     )
     parser.add_argument("--max-cycles", type=int, default=500)
     parser.add_argument("--time-delta", type=float, default=2.0)
@@ -30,7 +35,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    driver = TopologicalVictorDriver(chronos_jsonl_path=args.chronos)
+    driver = VictorSovereignDriver(
+        chronos_jsonl_path=args.chronos,
+        identity_key_path=args.identity_key,
+    )
     driver.start_project(args.directive)
     result = driver.run(max_cycles=args.max_cycles, time_delta=args.time_delta)
     if result.get("authoritative_build_complete") and args.export_dir:
