@@ -1,0 +1,27 @@
+name: Victor organ contract
+
+on:
+  push:
+    branches:
+      - main
+      - agent/victor-organ-adapter
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Probe adapter
+        run: python victor_adapter.py probe
+      - name: Run Dev-Ville regression tests
+        run: python test_devville.py
+      - name: Run Victor organ contract tests
+        run: python -m unittest -v test_victor_adapter.py
