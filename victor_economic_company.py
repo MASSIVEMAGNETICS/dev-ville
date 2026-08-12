@@ -34,7 +34,14 @@ class VictorEconomicCompany(VictorMachineLaborCompany):
             store_path=economic_store_path,
             event_sink=self._economic_event_sink,
         )
-        self.current_economic_run_id: Optional[str] = None
+        open_runs = self.economic.list_open_runs()
+        if len(open_runs) > 1:
+            raise RuntimeError(
+                "multiple open economic runs require explicit recovery reconciliation"
+            )
+        self.current_economic_run_id: Optional[str] = (
+            open_runs[0]["id"] if open_runs else None
+        )
 
     def _economic_event_sink(
         self,
