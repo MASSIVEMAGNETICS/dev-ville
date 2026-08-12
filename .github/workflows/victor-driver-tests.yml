@@ -7,6 +7,7 @@ on:
       - agent/evidence-verification-boundary
   push:
     branches:
+      - main
       - agent/evidence-verification-boundary
       - agent/victor-topology-kernel
 
@@ -56,9 +57,12 @@ jobs:
             victor_sovereign_driver.py \
             victor_driver_facade.py \
             victor_drive.py \
-            devville_verified.py
+            devville_verified.py \
+            moneyfarm_economic_organ.py \
+            victor_economic_company.py \
+            devville_moneyfarm.py
 
-      - name: Run evidence, driver, topology, identity, and learning contracts
+      - name: Run combined Victor and MoneyFarm regression contracts
         run: |
           python -m unittest -v \
             test_verification_boundary.py \
@@ -66,4 +70,5 @@ jobs:
             test_victor_driver.py \
             test_victor_topology_kernel.py \
             test_victor_identity_kernel.py \
-            test_victor_learning.py
+            test_victor_learning.py \
+            test_moneyfarm_economic_organ.py
