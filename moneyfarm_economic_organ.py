@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import sqlite3
 import threading
+import unicodedata
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
@@ -30,6 +31,16 @@ def _canonical_json(value: Any) -> str:
 
 def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _normalize_source(value: str) -> str:
+    """Canonical provider/source key used for verifier binding and uniqueness."""
+    return unicodedata.normalize("NFKC", value).strip().casefold()
+
+
+def _normalize_external_id(value: str) -> str:
+    """Remove Unicode/whitespace aliases without changing provider ID case."""
+    return unicodedata.normalize("NFKC", value).strip()
 
 
 ReceiptVerifier = Callable[[Dict[str, Any], Dict[str, Any]], bool]
@@ -129,6 +140,8 @@ class MoneyFarmStore:
 
                 CREATE INDEX IF NOT EXISTS idx_runs_strategy ON runs(strategy_id, status);
                 CREATE INDEX IF NOT EXISTS idx_receipts_run_status ON receipts(run_id, status);
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_receipts_source_external
+                    ON receipts(source, external_id);
                 CREATE INDEX IF NOT EXISTS idx_decisions_strategy ON decisions(strategy_id, created_at);
                 """
             )
@@ -177,10 +190,11 @@ class MoneyFarmEconomicOrgan:
             self.event_sink(action, entity_id, payload, evidence or {}, authority)
 
     def register_verifier(self, name: str, verifier: ReceiptVerifier) -> None:
-        if not name or not callable(verifier):
-            raise ValueError("verifier requires a non-empty name and callable")
+        source = _normalize_source(name)
+        if not source or not callable(verifier):
+            raise ValueError("verifier requires a non-empty source and callable")
         with self._lock:
-            self._verifiers[name] = verifier
+            self._verifiers[source] = verifier
 
     def register_strategy(
         self,
@@ -278,6 +292,11 @@ class MoneyFarmEconomicOrgan:
             raise KeyError(f"unknown run: {run_id}")
         return row
 
+    def list_open_runs(self) -> List[Dict[str, Any]]:
+        return self.store.fetchall(
+            "SELECT * FROM runs WHERE status='open' ORDER BY started_at, id"
+        )
+
     def record_receipt(
         self,
         run_id: str,
@@ -290,71 +309,98 @@ class MoneyFarmEconomicOrgan:
         currency: str = "USD",
         observed_at: Optional[str] = None,
     ) -> str:
-        run = self.get_run(run_id)
-        if run["status"] != "open":
-            raise ValueError("receipts may only be attached to open runs")
         if kind not in {"revenue", "cost"}:
             raise ValueError("kind must be revenue or cost")
         if amount_cents < 0:
             raise ValueError("amount_cents must be non-negative")
-        if not source.strip() or not external_id.strip():
+        source_key = _normalize_source(source)
+        external_key = _normalize_external_id(external_id)
+        if not source_key or not external_key:
             raise ValueError("source and external_id are required")
         if not isinstance(evidence, dict) or not evidence:
             raise ValueError("evidence must be a non-empty object")
-
-        if kind == "cost":
-            strategy = self.get_strategy(run["strategy_id"])
-            existing_cost = self.store.fetchone(
-                """
-                SELECT COALESCE(SUM(amount_cents), 0) AS total
-                FROM receipts
-                WHERE run_id=? AND kind='cost' AND status != 'rejected'
-                """,
-                (run_id,),
-            )
-            committed = int(existing_cost["total"] if existing_cost else 0)
-            if committed + int(amount_cents) > int(strategy["max_budget_cents"]):
-                raise RuntimeError(
-                    f"run budget exceeded: {committed + int(amount_cents)} > "
-                    f"{strategy['max_budget_cents']} cents"
-                )
+        currency_key = currency.strip().upper()
+        if not currency_key:
+            raise ValueError("currency is required")
 
         core = {
             "run_id": run_id,
             "kind": kind,
             "amount_cents": int(amount_cents),
-            "currency": currency.upper(),
-            "source": source.strip(),
-            "external_id": external_id.strip(),
+            "currency": currency_key,
+            "source": source_key,
+            "external_id": external_key,
             "observed_at": observed_at or _utc_now(),
             "evidence": evidence,
         }
         evidence_hash = _sha256(core)
         receipt_id = f"receipt-{uuid.uuid4().hex}"
-        try:
-            self.store.execute(
-                """
-                INSERT INTO receipts(
-                    id,run_id,kind,amount_cents,currency,source,external_id,
-                    observed_at,evidence_json,evidence_hash,status
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    receipt_id,
-                    run_id,
-                    kind,
-                    int(amount_cents),
-                    currency.upper(),
-                    source.strip(),
-                    external_id.strip(),
-                    core["observed_at"],
-                    _canonical_json(evidence),
-                    evidence_hash,
-                    "pending",
-                ),
-            )
-        except sqlite3.IntegrityError as exc:
-            raise ValueError("duplicate or invalid receipt") from exc
+
+        # Serialize the ceiling decision with the insert across processes/connections.
+        # A second writer cannot observe stale committed cost and overspend the run.
+        with self.store._lock:
+            conn = self.store._conn
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                run_row = conn.execute(
+                    "SELECT * FROM runs WHERE id=?", (run_id,)
+                ).fetchone()
+                if not run_row:
+                    raise KeyError(f"unknown run: {run_id}")
+                if run_row["status"] != "open":
+                    raise ValueError("receipts may only be attached to open runs")
+
+                if kind == "cost":
+                    strategy = conn.execute(
+                        "SELECT max_budget_cents FROM strategies WHERE id=?",
+                        (run_row["strategy_id"],),
+                    ).fetchone()
+                    if not strategy:
+                        raise KeyError(f"unknown strategy: {run_row['strategy_id']}")
+                    existing_cost = conn.execute(
+                        """
+                        SELECT COALESCE(SUM(amount_cents), 0) AS total
+                        FROM receipts
+                        WHERE run_id=? AND kind='cost' AND status != 'rejected'
+                        """,
+                        (run_id,),
+                    ).fetchone()
+                    committed = int(existing_cost["total"] if existing_cost else 0)
+                    proposed = committed + int(amount_cents)
+                    ceiling = int(strategy["max_budget_cents"])
+                    if proposed > ceiling:
+                        raise RuntimeError(
+                            f"run budget exceeded: {proposed} > {ceiling} cents"
+                        )
+
+                conn.execute(
+                    """
+                    INSERT INTO receipts(
+                        id,run_id,kind,amount_cents,currency,source,external_id,
+                        observed_at,evidence_json,evidence_hash,status
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        receipt_id,
+                        run_id,
+                        kind,
+                        int(amount_cents),
+                        currency_key,
+                        source_key,
+                        external_key,
+                        core["observed_at"],
+                        _canonical_json(evidence),
+                        evidence_hash,
+                        "pending",
+                    ),
+                )
+                conn.commit()
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                raise ValueError("duplicate or invalid receipt") from exc
+            except Exception:
+                conn.rollback()
+                raise
 
         self._emit(
             "economic_receipt_recorded",
@@ -363,9 +409,9 @@ class MoneyFarmEconomicOrgan:
                 "run_id": run_id,
                 "kind": kind,
                 "amount_cents": int(amount_cents),
-                "currency": currency.upper(),
-                "source": source.strip(),
-                "external_id": external_id.strip(),
+                "currency": currency_key,
+                "source": source_key,
+                "external_id": external_key,
                 "evidence_hash": evidence_hash,
             },
             evidence={"receipt_core_sha256": evidence_hash},
@@ -388,27 +434,52 @@ class MoneyFarmEconomicOrgan:
             return True
         if receipt["status"] == "rejected":
             return False
-        verifier = self._verifiers.get(verifier_name)
+
+        source_key = _normalize_source(receipt["source"])
+        requested_source = _normalize_source(verifier_name)
+        if requested_source != source_key:
+            raise ValueError(
+                f"verifier source mismatch: {requested_source!r} != {source_key!r}"
+            )
+        verifier = self._verifiers.get(source_key)
         if verifier is None:
-            raise KeyError(f"receipt verifier is not registered: {verifier_name}")
+            raise KeyError(f"receipt verifier is not registered for source: {source_key}")
+
+        receipt_core = {
+            "run_id": receipt["run_id"],
+            "kind": receipt["kind"],
+            "amount_cents": int(receipt["amount_cents"]),
+            "currency": receipt["currency"],
+            "source": source_key,
+            "external_id": receipt["external_id"],
+            "observed_at": receipt["observed_at"],
+            "evidence": receipt["evidence"],
+        }
+        if _sha256(receipt_core) != receipt["evidence_hash"]:
+            raise RuntimeError("receipt evidence hash mismatch")
 
         accepted = bool(verifier(receipt, proof))
         new_status = "verified" if accepted else "rejected"
         verified_at = _utc_now()
         verification = {
-            "verifier": verifier_name,
+            "verifier": source_key,
             "proof": proof,
             "accepted": accepted,
             "verified_at": verified_at,
         }
-        self.store.execute(
+        cursor = self.store.execute(
             """
             UPDATE receipts
             SET status=?, verifier=?, verification_json=?, verified_at=?
             WHERE id=? AND status='pending'
             """,
-            (new_status, verifier_name, _canonical_json(verification), verified_at, receipt_id),
+            (new_status, source_key, _canonical_json(verification), verified_at, receipt_id),
         )
+        if cursor.rowcount != 1:
+            # Another verifier won the compare-and-set. Report durable truth and
+            # never emit a second, contradictory verification event.
+            return self.get_receipt(receipt_id)["status"] == "verified"
+
         self._emit(
             "economic_receipt_verified" if accepted else "economic_receipt_rejected",
             f"receipt:{receipt_id}",
@@ -416,7 +487,7 @@ class MoneyFarmEconomicOrgan:
                 "run_id": receipt["run_id"],
                 "kind": receipt["kind"],
                 "amount_cents": receipt["amount_cents"],
-                "verifier": verifier_name,
+                "verifier": source_key,
                 "status": new_status,
             },
             evidence={"verification_sha256": _sha256(verification)},
