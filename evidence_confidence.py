@@ -1,13 +1,15 @@
 """Evidence strength and empirically calibrated confidence for Dev-Ville.
 
 Evidence strength is a deterministic quality score. Confidence is only emitted
-when enough resolved predictions exist to empirically calibrate that score.
-This prevents arbitrary "92% confidence" values from masquerading as truth.
+when enough resolved predictions exist globally *and* in the matching score bin.
+This prevents arbitrary or one-sample "92% confidence" values from masquerading
+as calibrated probability.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+import math
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -52,8 +54,10 @@ class ConfidenceResult:
     support_weight: float
     contradiction_weight: float
     confidence: Optional[float]
+    confidence_interval_95: Optional[Tuple[float, float]]
     calibration_status: str
     calibration_samples: int
+    local_bin_samples: int
     brier_score: Optional[float]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -63,13 +67,16 @@ class ConfidenceResult:
 class ConfidenceCalibrator:
     """Map deterministic evidence strength to observed empirical accuracy."""
 
-    def __init__(self, min_samples: int = 20, bins: int = 10):
+    def __init__(self, min_samples: int = 20, bins: int = 10, min_bin_samples: int = 5):
         if min_samples < 1:
             raise ValueError("min_samples must be positive")
         if bins < 2:
             raise ValueError("bins must be >= 2")
-        self.min_samples = min_samples
-        self.bins = bins
+        if min_bin_samples < 1:
+            raise ValueError("min_bin_samples must be positive")
+        self.min_samples = int(min_samples)
+        self.bins = int(bins)
+        self.min_bin_samples = int(min_bin_samples)
         self._history: List[CalibrationObservation] = []
 
     @staticmethod
@@ -102,58 +109,80 @@ class ConfidenceCalibrator:
         return [x for x in self._history if low <= x.raw_score < high]
 
     def brier_score(self) -> Optional[float]:
+        """Diagnostic Brier score of raw evidence-strength predictions."""
         if not self._history:
             return None
         return sum((x.raw_score - float(x.outcome)) ** 2 for x in self._history) / len(self._history)
 
+    @staticmethod
+    def _wilson_interval(successes: int, n: int) -> Tuple[float, float]:
+        if n <= 0:
+            raise ValueError("Wilson interval requires n > 0")
+        z = 1.959963984540054
+        p = successes / n
+        z2 = z * z
+        denom = 1.0 + z2 / n
+        center = (p + z2 / (2.0 * n)) / denom
+        margin = z * math.sqrt((p * (1.0 - p) + z2 / (4.0 * n)) / n) / denom
+        return max(0.0, center - margin), min(1.0, center + margin)
+
     def evaluate(self, items: Sequence[EvidenceItem]) -> ConfidenceResult:
         raw, support, contradiction = self.evidence_strength(items)
         n = len(self._history)
+        members = self._bin_members(raw)
+        local_n = len(members)
+        brier = self.brier_score()
+        common = {
+            "evidence_strength": round(raw, 6),
+            "support_weight": round(support, 6),
+            "contradiction_weight": round(contradiction, 6),
+            "calibration_samples": n,
+            "local_bin_samples": local_n,
+            "brier_score": round(brier, 6) if brier is not None else None,
+        }
+
         if n < self.min_samples:
             return ConfidenceResult(
-                evidence_strength=round(raw, 6),
-                support_weight=round(support, 6),
-                contradiction_weight=round(contradiction, 6),
                 confidence=None,
+                confidence_interval_95=None,
                 calibration_status="uncalibrated",
-                calibration_samples=n,
-                brier_score=self.brier_score(),
+                **common,
             )
 
-        members = self._bin_members(raw)
-        if not members:
+        if local_n < self.min_bin_samples:
             return ConfidenceResult(
-                evidence_strength=round(raw, 6),
-                support_weight=round(support, 6),
-                contradiction_weight=round(contradiction, 6),
                 confidence=None,
+                confidence_interval_95=None,
                 calibration_status="insufficient_local_bin",
-                calibration_samples=n,
-                brier_score=round(self.brier_score() or 0.0, 6),
+                **common,
             )
 
-        empirical = sum(float(x.outcome) for x in members) / len(members)
+        successes = sum(1 for x in members if x.outcome)
+        empirical = successes / local_n
+        low, high = self._wilson_interval(successes, local_n)
         return ConfidenceResult(
-            evidence_strength=round(raw, 6),
-            support_weight=round(support, 6),
-            contradiction_weight=round(contradiction, 6),
             confidence=round(empirical, 6),
+            confidence_interval_95=(round(low, 6), round(high, 6)),
             calibration_status="empirically_calibrated",
-            calibration_samples=n,
-            brier_score=round(self.brier_score() or 0.0, 6),
+            **common,
         )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "min_samples": self.min_samples,
             "bins": self.bins,
+            "min_bin_samples": self.min_bin_samples,
             "history": [asdict(x) for x in self._history],
             "brier_score": self.brier_score(),
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ConfidenceCalibrator":
-        obj = cls(min_samples=int(data.get("min_samples", 20)), bins=int(data.get("bins", 10)))
+        obj = cls(
+            min_samples=int(data.get("min_samples", 20)),
+            bins=int(data.get("bins", 10)),
+            min_bin_samples=int(data.get("min_bin_samples", 5)),
+        )
         for row in data.get("history", []):
             obj.record_resolution(float(row["raw_score"]), bool(row["outcome"]))
         return obj

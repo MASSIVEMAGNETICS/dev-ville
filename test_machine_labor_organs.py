@@ -69,21 +69,38 @@ BAD_BACKEND = GOOD_BACKEND.replace('return {"status": 201}', 'return {"status": 
 
 class ConfidenceTests(unittest.TestCase):
     def test_refuses_fake_probability_before_calibration(self):
-        c = ConfidenceCalibrator(min_samples=3, bins=2)
+        c = ConfidenceCalibrator(min_samples=3, bins=2, min_bin_samples=2)
         item = EvidenceItem("claim", "source", True, 1, 1, 1, 1)
         result = c.evaluate([item])
         self.assertIsNone(result.confidence)
         self.assertEqual(result.calibration_status, "uncalibrated")
 
+    def test_refuses_sparse_local_bin_after_global_minimum(self):
+        c = ConfidenceCalibrator(min_samples=4, bins=2, min_bin_samples=2)
+        c.record_resolution(0.1, True)
+        c.record_resolution(0.2, True)
+        c.record_resolution(0.3, False)
+        c.record_resolution(0.9, True)
+        item = EvidenceItem("claim", "source", True, 1, 1, 1, 1)
+        result = c.evaluate([item])
+        self.assertIsNone(result.confidence)
+        self.assertEqual(result.calibration_status, "insufficient_local_bin")
+        self.assertEqual(result.local_bin_samples, 1)
+
     def test_emits_empirical_confidence_after_resolution_history(self):
-        c = ConfidenceCalibrator(min_samples=3, bins=2)
+        c = ConfidenceCalibrator(min_samples=3, bins=2, min_bin_samples=3)
         c.record_resolution(0.9, True)
         c.record_resolution(0.8, True)
         c.record_resolution(0.7, False)
         item = EvidenceItem("claim", "source", True, 1, 1, 1, 1)
         result = c.evaluate([item])
         self.assertEqual(result.calibration_status, "empirically_calibrated")
+        self.assertEqual(result.local_bin_samples, 3)
         self.assertAlmostEqual(result.confidence, 2 / 3, places=6)
+        self.assertIsNotNone(result.confidence_interval_95)
+        low, high = result.confidence_interval_95
+        self.assertLess(low, result.confidence)
+        self.assertGreater(high, result.confidence)
 
 
 class ResearchTests(unittest.TestCase):

@@ -1,0 +1,69 @@
+name: Victor Driver Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - agent/evidence-verification-boundary
+  push:
+    branches:
+      - agent/evidence-verification-boundary
+      - agent/victor-topology-kernel
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-and-driver-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile authoritative runtime modules
+        run: |
+          python -m py_compile \
+            verification_boundary.py \
+            verified_company.py \
+            evidence_confidence.py \
+            research_organ.py \
+            beta_organ.py \
+            trace0_chronos.py \
+            machine_labor_organs.py \
+            victor_machine_labor.py \
+            victor_vehicle.py \
+            victor_driver.py \
+            victor_capability_registry.py \
+            victor_world_model.py \
+            victor_mission_compiler.py \
+            victor_choice_kernel.py \
+            victor_outcome_resolver.py \
+            victor_learning.py \
+            victor_topology_kernel.py \
+            victor_topological_driver.py \
+            victor_identity_kernel.py \
+            victor_sovereign_driver.py \
+            victor_driver_facade.py \
+            victor_drive.py \
+            devville_verified.py
+
+      - name: Run evidence, driver, topology, identity, and learning contracts
+        run: |
+          python -m unittest -v \
+            test_verification_boundary.py \
+            test_machine_labor_organs.py \
+            test_victor_driver.py \
+            test_victor_topology_kernel.py \
+            test_victor_identity_kernel.py \
+            test_victor_learning.py

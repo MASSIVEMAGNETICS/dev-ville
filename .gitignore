@@ -39,3 +39,7 @@ projects/
 exports/
 logs/
 *.log
+
+# Victor runtime state / secrets
+identity/*.key
+chronos/*.jsonl
