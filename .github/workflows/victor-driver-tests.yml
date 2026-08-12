@@ -62,7 +62,7 @@ jobs:
             victor_economic_company.py \
             devville_moneyfarm.py
 
-      - name: Run combined Victor and MoneyFarm regression contracts
+      - name: Run Victor regression contracts
         run: |
           python -m unittest -v \
             test_verification_boundary.py \
@@ -70,5 +70,7 @@ jobs:
             test_victor_driver.py \
             test_victor_topology_kernel.py \
             test_victor_identity_kernel.py \
-            test_victor_learning.py \
-            test_moneyfarm_economic_organ.py
+            test_victor_learning.py
+
+      - name: Run MoneyFarm economic regression contracts
+        run: python test_moneyfarm_economic_organ.py
