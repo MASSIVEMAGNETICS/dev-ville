@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "name": "Bando-Victor Empire",
+  "nodes": [
+    {
+      "id": "victor.control-plane",
+      "capability": "sovereign-control",
+      "status": "active",
+      "canonical": true,
+      "dependencies": [],
+      "metadata": {
+        "role": "mission -> authority -> lease -> verification -> commit"
+      }
+    },
+    {
+      "id": "chronos.audit",
+      "capability": "causal-history",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane"]
+    },
+    {
+      "id": "devville.machine-labor",
+      "capability": "bounded-execution",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "chronos.audit"]
+    },
+    {
+      "id": "moneyfarm.economic-organ",
+      "capability": "economic-accounting",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["devville.machine-labor", "chronos.audit"]
+    },
+    {
+      "id": "research.organ",
+      "capability": "research",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "chronos.audit"]
+    },
+    {
+      "id": "iambandobandz.front-door",
+      "capability": "public-acquisition",
+      "status": "ready",
+      "canonical": true,
+      "dependencies": ["victor.control-plane"]
+    },
+    {
+      "id": "bheard.commerce-adapter",
+      "capability": "commerce",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["moneyfarm.economic-organ"],
+      "metadata": {
+        "critical_path": true,
+        "external_blocker": "No production commerce/provider adapter is yet verified end-to-end with authoritative transaction receipts."
+      }
+    },
+    {
+      "id": "revenue.worker",
+      "capability": "revenue-execution",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["bheard.commerce-adapter", "devville.machine-labor"],
+      "metadata": {
+        "critical_path": true,
+        "external_blocker": "The first reliable worker cannot close the revenue loop until a real economic platform adapter is authenticated and verified."
+      }
+    },
+    {
+      "id": "music.compiler",
+      "capability": "music-production",
+      "status": "planned",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "research.organ"],
+      "auto_fix": "promote_ready",
+      "metadata": {
+        "target": "BMIR -> generator adapters -> AI Ear/BandoRank -> repair -> provenance"
+      }
+    },
+    {
+      "id": "github.delivery",
+      "capability": "software-delivery",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["devville.machine-labor"]
+    }
+  ]
+}
