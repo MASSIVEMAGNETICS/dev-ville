@@ -1,12 +1,9 @@
-"""Deterministic self-correcting control plane for the Bando/Victor empire.
+"""Deterministic, evidence-gated control plane for the Bando/Victor empire.
 
-The kernel is intentionally stdlib-only and side-effect constrained:
-it analyzes a declarative topology, identifies structural gaps, applies only
-allowlisted local remediations, re-assesses the graph, and emits receipts.
-
-External actions (commerce APIs, deployments, credentials, money movement)
-must be implemented as explicit capability adapters and are never invented
-or executed by this kernel.
+The kernel treats the empire as a logical dependency graph. It detects topology
+failures, applies only allowlisted local remediations, re-verifies state, and
+writes receipts. It never converts an assertion into reality: promotion to a
+ready state requires explicit readiness evidence.
 """
 
 from __future__ import annotations
@@ -59,8 +56,7 @@ class EmpireNode:
         valid_statuses = {item.value for item in NodeStatus}
         if status not in valid_statuses:
             raise ValueError(
-                f"node {node_id!r} has invalid status {status!r}; "
-                f"expected one of {sorted(valid_statuses)}"
+                f"node {node_id!r} has invalid status {status!r}; expected one of {sorted(valid_statuses)}"
             )
         deps = tuple(str(dep).strip() for dep in raw.get("dependencies", []) if str(dep).strip())
         metadata = raw.get("metadata", {})
@@ -118,15 +114,13 @@ class ControlPlaneReceipt:
 
 
 class EmpireTopology:
-    """Loads and analyzes the canonical logical system graph."""
+    """Validated logical graph independent of repository layout."""
 
     def __init__(self, manifest: Mapping[str, Any]):
         self.manifest = self._validate_manifest(manifest)
-        self.nodes = {
-            node.node_id: node
-            for node in (EmpireNode.from_mapping(item) for item in self.manifest["nodes"])
-        }
-        if len(self.nodes) != len(self.manifest["nodes"]):
+        parsed = [EmpireNode.from_mapping(item) for item in self.manifest["nodes"]]
+        self.nodes = {node.node_id: node for node in parsed}
+        if len(self.nodes) != len(parsed):
             raise ValueError("duplicate node ids are not allowed")
 
     @staticmethod
@@ -146,17 +140,14 @@ class EmpireTopology:
         }
 
     def dependency_order(self) -> List[str]:
-        """Return a topological ordering; raise on dependency cycles."""
         indegree = {node_id: 0 for node_id in self.nodes}
         dependents: Dict[str, List[str]] = {node_id: [] for node_id in self.nodes}
-
         for node in self.nodes.values():
             for dep in node.dependencies:
                 if dep not in self.nodes:
                     continue
                 indegree[node.node_id] += 1
                 dependents[dep].append(node.node_id)
-
         queue = sorted(node_id for node_id, degree in indegree.items() if degree == 0)
         order: List[str] = []
         while queue:
@@ -167,14 +158,12 @@ class EmpireTopology:
                 if indegree[dependent] == 0:
                     queue.append(dependent)
                     queue.sort()
-
         if len(order) != len(self.nodes):
             cyclic = sorted(node_id for node_id, degree in indegree.items() if degree > 0)
             raise ValueError(f"dependency cycle detected: {', '.join(cyclic)}")
         return order
 
     def centrality(self) -> Dict[str, int]:
-        """Simple reverse-dependency centrality used for triage priority."""
         counts = {node_id: 0 for node_id in self.nodes}
         for node in self.nodes.values():
             for dep in node.dependencies:
@@ -184,7 +173,7 @@ class EmpireTopology:
 
 
 class EmpireAssessor:
-    """Find structural and readiness gaps without mutating state."""
+    """Find structural, authority, readiness, and external-reality gaps."""
 
     _SEVERITY_WEIGHT = {
         Severity.INFO: 1,
@@ -201,16 +190,11 @@ class EmpireAssessor:
         for node in nodes.values():
             missing = sorted(dep for dep in node.dependencies if dep not in nodes)
             if missing:
-                gaps.append(
-                    self._gap(
-                        "missing_dependency",
-                        Severity.CRITICAL,
-                        node.node_id,
-                        f"{node.node_id} references missing dependencies: {', '.join(missing)}",
-                        node.auto_fix,
-                        {"missing": missing},
-                    )
-                )
+                gaps.append(self._gap(
+                    "missing_dependency", Severity.CRITICAL, node.node_id,
+                    f"{node.node_id} references missing dependencies: {', '.join(missing)}",
+                    None, {"missing": missing},
+                ))
 
         try:
             topology.dependency_order()
@@ -224,71 +208,59 @@ class EmpireAssessor:
         for capability, authorities in by_capability.items():
             if len(authorities) > 1:
                 ids = sorted(node.node_id for node in authorities)
-                gaps.append(
-                    self._gap(
-                        "duplicate_authority",
-                        Severity.HIGH,
-                        None,
-                        f"capability {capability!r} has multiple canonical authorities: {', '.join(ids)}",
-                        None,
-                        {"capability": capability, "nodes": ids},
-                    )
-                )
+                gaps.append(self._gap(
+                    "duplicate_authority", Severity.HIGH, None,
+                    f"capability {capability!r} has multiple canonical authorities: {', '.join(ids)}",
+                    None, {"capability": capability, "nodes": ids},
+                ))
 
         operational = {NodeStatus.ACTIVE.value, NodeStatus.READY.value}
         for node in nodes.values():
             if node.status not in operational:
                 continue
             blocked_by = sorted(
-                dep
-                for dep in node.dependencies
+                dep for dep in node.dependencies
                 if dep in nodes and nodes[dep].status not in operational
             )
             if blocked_by:
-                gaps.append(
-                    self._gap(
-                        "false_readiness",
-                        Severity.HIGH,
-                        node.node_id,
-                        f"{node.node_id} is {node.status} but dependencies are not ready: {', '.join(blocked_by)}",
-                        "demote_blocked",
-                        {"blocked_by": blocked_by},
-                    )
-                )
+                gaps.append(self._gap(
+                    "false_readiness", Severity.HIGH, node.node_id,
+                    f"{node.node_id} is {node.status} but dependencies are not ready: {', '.join(blocked_by)}",
+                    "demote_blocked", {"blocked_by": blocked_by},
+                ))
 
         for node in nodes.values():
-            if node.status not in {NodeStatus.PLANNED.value, NodeStatus.BLOCKED.value}:
+            if node.auto_fix != "promote_ready":
                 continue
-            if not node.dependencies:
+            if node.status not in {NodeStatus.PLANNED.value, NodeStatus.BLOCKED.value}:
                 continue
             deps_exist = all(dep in nodes for dep in node.dependencies)
             deps_ready = deps_exist and all(nodes[dep].status in operational for dep in node.dependencies)
-            if deps_ready and node.auto_fix == "promote_ready":
-                gaps.append(
-                    self._gap(
-                        "stale_block",
-                        Severity.MEDIUM,
-                        node.node_id,
-                        f"{node.node_id} is {node.status} although all dependencies are ready",
-                        "promote_ready",
-                        {},
-                    )
-                )
+            if not deps_ready:
+                continue
+            readiness_verified = node.metadata.get("readiness_verified") is True
+            readiness_receipt = str(node.metadata.get("readiness_receipt", "")).strip()
+            if readiness_verified and readiness_receipt:
+                gaps.append(self._gap(
+                    "verified_promotion_pending", Severity.MEDIUM, node.node_id,
+                    f"{node.node_id} has ready dependencies and explicit readiness evidence",
+                    "promote_ready", {"readiness_receipt": readiness_receipt},
+                ))
+            else:
+                gaps.append(self._gap(
+                    "unverified_promotion", Severity.HIGH, node.node_id,
+                    f"{node.node_id} requests automatic promotion without verified readiness evidence",
+                    None, {},
+                ))
 
         for node in nodes.values():
             blocker = str(node.metadata.get("external_blocker", "")).strip()
             if node.status == NodeStatus.BLOCKED.value and blocker:
                 severity = Severity.HIGH if bool(node.metadata.get("critical_path")) else Severity.MEDIUM
-                gaps.append(
-                    self._gap(
-                        "external_blocker",
-                        severity,
-                        node.node_id,
-                        blocker,
-                        None,
-                        {"critical_path": bool(node.metadata.get("critical_path"))},
-                    )
-                )
+                gaps.append(self._gap(
+                    "external_blocker", severity, node.node_id, blocker, None,
+                    {"critical_path": bool(node.metadata.get("critical_path"))},
+                ))
 
         centrality = topology.centrality()
         return sorted(
@@ -312,8 +284,7 @@ class EmpireAssessor:
     ) -> Gap:
         stable = json.dumps(
             {"kind": kind, "node_id": node_id, "message": message},
-            sort_keys=True,
-            separators=(",", ":"),
+            sort_keys=True, separators=(",", ":"),
         )
         gap_id = hashlib.sha256(stable.encode("utf-8")).hexdigest()[:16]
         return Gap(gap_id, kind, severity, node_id, message, auto_fix, dict(details))
@@ -323,10 +294,7 @@ RemediationHandler = Callable[[MutableMapping[str, Any], Gap], Tuple[bool, str]]
 
 
 class SelfCorrectingEmpire:
-    """Observe -> assess -> remediate -> verify -> receipt.
-
-    Only explicitly registered remediation handlers can mutate the manifest.
-    """
+    """Observe -> assess -> remediate -> verify -> receipt."""
 
     def __init__(self, manifest_path: Path | str, *, receipt_dir: Path | str = "state/empire_receipts"):
         self.manifest_path = Path(manifest_path)
@@ -346,21 +314,23 @@ class SelfCorrectingEmpire:
         manifest = self._load_manifest()
         before_hash = self._hash_manifest(manifest)
         gaps_before = self.assessor.assess(EmpireTopology(manifest))
-
         results: List[RemediationResult] = []
         changed = False
+
         if apply:
             for gap in gaps_before:
-                action = gap.auto_fix
-                if not action:
+                if not gap.auto_fix:
                     continue
-                handler = self.handlers.get(action)
+                handler = self.handlers.get(gap.auto_fix)
                 if handler is None:
-                    results.append(RemediationResult(gap.gap_id, action, False, False, f"no registered handler for {action}"))
+                    results.append(RemediationResult(
+                        gap.gap_id, gap.auto_fix, False, False,
+                        f"no registered handler for {gap.auto_fix}",
+                    ))
                     continue
                 did_change, message = handler(manifest, gap)
                 changed = changed or did_change
-                results.append(RemediationResult(gap.gap_id, action, True, did_change, message))
+                results.append(RemediationResult(gap.gap_id, gap.auto_fix, True, did_change, message))
 
         if changed:
             self._atomic_write_json(self.manifest_path, manifest)
@@ -369,30 +339,19 @@ class SelfCorrectingEmpire:
         gaps_after = self.assessor.assess(EmpireTopology(verified_manifest))
         after_hash = self._hash_manifest(verified_manifest)
         unresolved_critical = sum(1 for gap in gaps_after if gap.severity == Severity.CRITICAL)
-
         timestamp = datetime.now(timezone.utc).isoformat()
-        material = json.dumps(
-            {
-                "timestamp": timestamp,
-                "before": before_hash,
-                "after": after_hash,
-                "gaps_before": len(gaps_before),
-                "gaps_after": len(gaps_after),
-                "results": [asdict(item) for item in results],
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+        material = json.dumps({
+            "timestamp": timestamp,
+            "before": before_hash,
+            "after": after_hash,
+            "gaps_before": len(gaps_before),
+            "gaps_after": len(gaps_after),
+            "results": [asdict(item) for item in results],
+        }, sort_keys=True, separators=(",", ":"))
         receipt_id = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
         receipt = ControlPlaneReceipt(
-            receipt_id,
-            timestamp,
-            before_hash,
-            after_hash,
-            len(gaps_before),
-            len(gaps_after),
-            unresolved_critical,
-            tuple(results),
+            receipt_id, timestamp, before_hash, after_hash,
+            len(gaps_before), len(gaps_after), unresolved_critical, tuple(results),
         )
         self._write_receipt(receipt)
         return receipt
@@ -427,11 +386,18 @@ class SelfCorrectingEmpire:
         if not gap.node_id:
             return False, "gap has no node"
         node = self._find_node(manifest, gap.node_id)
+        metadata = node.get("metadata") or {}
+        if not isinstance(metadata, Mapping):
+            return False, "metadata is invalid"
+        readiness_verified = metadata.get("readiness_verified") is True
+        readiness_receipt = str(metadata.get("readiness_receipt", "")).strip()
+        if not readiness_verified or not readiness_receipt:
+            return False, "promotion denied: verified readiness receipt required"
         previous = str(node.get("status"))
         if previous == NodeStatus.READY.value:
             return False, "already ready"
         node["status"] = NodeStatus.READY.value
-        return True, f"{gap.node_id}: {previous} -> ready"
+        return True, f"{gap.node_id}: {previous} -> ready using {readiness_receipt}"
 
     def _demote_blocked(self, manifest: MutableMapping[str, Any], gap: Gap) -> Tuple[bool, str]:
         if not gap.node_id:
