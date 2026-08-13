@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+from contextvars import ContextVar
 import hashlib
 import json
 import os
 import re
 import sys
+import threading
 import traceback
 import uuid
 from datetime import datetime, timezone
@@ -27,6 +29,13 @@ MAX_TIME_DELTA = 20.0
 DEFAULT_MAX_FILES = 128
 DEFAULT_MAX_TOTAL_BYTES = 2_000_000
 MAX_DIRECTIVE_CHARS = 12_000
+
+_ACTIVE_OUTPUT_ROOT: ContextVar[Path | None] = ContextVar(
+    "victor_adapter_active_output_root",
+    default=None,
+)
+_AUDIT_HOOK_INSTALLED = False
+_AUDIT_HOOK_LOCK = threading.Lock()
 
 
 class ContractError(RuntimeError):
@@ -135,34 +144,50 @@ def validate_job(job: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def _install_runtime_guard(output_root: Path) -> None:
-    """Deny network/process escape and writes outside the organ output root.
+def _runtime_audit(event: str, args: tuple[Any, ...]) -> None:
+    """Enforce the active organ policy only while a run is executing.
 
-    This is defense in depth, not an OS sandbox. Victor must still launch this
-    adapter under an appropriately restricted OS account/container for hostile code.
+    CPython audit hooks are process-global and cannot be removed. The original
+    implementation permanently captured one output root, which contaminated
+    later jobs/tests and also made a second job with a different output root
+    impossible. A ContextVar scopes enforcement to the current execution
+    context while retaining the defense-in-depth audit hook.
     """
 
-    root = output_root.resolve()
+    root = _ACTIVE_OUTPUT_ROOT.get()
+    if root is None:
+        return
+
     denied = {"subprocess.Popen", "os.system", "socket.connect", "socket.connect_ex"}
+    if event in denied:
+        raise PermissionError(f"Victor organ policy denied audit event: {event}")
+    if event != "open" or not args:
+        return
 
-    def audit(event: str, args: tuple[Any, ...]) -> None:
-        if event in denied:
-            raise PermissionError(f"Victor organ policy denied audit event: {event}")
-        if event != "open" or not args:
-            return
-        target = args[0]
-        if not isinstance(target, (str, bytes, os.PathLike)):
-            return
-        mode = args[1] if len(args) > 1 else "r"
-        flags = args[2] if len(args) > 2 and isinstance(args[2], int) else 0
-        writes = False
-        if isinstance(mode, str):
-            writes = any(marker in mode for marker in ("w", "a", "x", "+"))
-        writes = writes or bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND))
-        if writes and not _inside(Path(target), root):
-            raise PermissionError(f"Victor organ policy denied write outside output root: {target}")
+    target = args[0]
+    if not isinstance(target, (str, bytes, os.PathLike)):
+        return
+    mode = args[1] if len(args) > 1 else "r"
+    flags = args[2] if len(args) > 2 and isinstance(args[2], int) else 0
+    writes = False
+    if isinstance(mode, str):
+        writes = any(marker in mode for marker in ("w", "a", "x", "+"))
+    writes = writes or bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND))
+    if writes and not _inside(Path(target), root):
+        raise PermissionError(f"Victor organ policy denied write outside output root: {target}")
 
-    sys.addaudithook(audit)
+
+def _install_runtime_guard() -> None:
+    """Install the process-global hook once; activation is context-scoped."""
+
+    global _AUDIT_HOOK_INSTALLED
+    if _AUDIT_HOOK_INSTALLED:
+        return
+    with _AUDIT_HOOK_LOCK:
+        if _AUDIT_HOOK_INSTALLED:
+            return
+        sys.addaudithook(_runtime_audit)
+        _AUDIT_HOOK_INSTALLED = True
 
 
 def _export_generated_files(
@@ -241,66 +266,70 @@ def run_job(job: Dict[str, Any], output_root: Path) -> Dict[str, Any]:
         raise ContractError("run directory escaped output root")
     run_dir.mkdir(parents=True, exist_ok=False)
 
-    _install_runtime_guard(output_root)
-    started_at = utc_now()
-    company = Company()
-    project = company.start_project(job["directive"])
-    if project is None:
-        raise RuntimeError("Dev-Ville failed to create a project")
+    _install_runtime_guard()
+    policy_token = _ACTIVE_OUTPUT_ROOT.set(output_root)
+    try:
+        started_at = utc_now()
+        company = Company()
+        project = company.start_project(job["directive"])
+        if project is None:
+            raise RuntimeError("Dev-Ville failed to create a project")
 
-    cycles = 0
-    limits = job["limits"]
-    while project.status != "completed" and cycles < limits["max_cycles"]:
-        if _parse_expiry(job["expires_at"]) <= datetime.now(timezone.utc):
-            raise ContractError("lease expired during execution")
-        company.work_cycle(limits["time_delta"])
-        cycles += 1
+        cycles = 0
+        limits = job["limits"]
+        while project.status != "completed" and cycles < limits["max_cycles"]:
+            if _parse_expiry(job["expires_at"]) <= datetime.now(timezone.utc):
+                raise ContractError("lease expired during execution")
+            company.work_cycle(limits["time_delta"])
+            cycles += 1
 
-    project.calculate_progress()
-    artifacts = _export_generated_files(
-        company,
-        run_dir,
-        max_files=limits["max_files"],
-        max_total_bytes=limits["max_total_bytes"],
-    )
+        project.calculate_progress()
+        artifacts = _export_generated_files(
+            company,
+            run_dir,
+            max_files=limits["max_files"],
+            max_total_bytes=limits["max_total_bytes"],
+        )
 
-    tasks = list(project.tasks)
-    completed_tasks = _completed_task_count(tasks)
-    status = "completed" if project.status == "completed" and bool(artifacts) else "incomplete"
-    receipt: Dict[str, Any] = {
-        "schema": RECEIPT_SCHEMA,
-        "organ": ORGAN_NAME,
-        "capability": CAPABILITY,
-        "job_id": job["job_id"],
-        "work_order_id": job["work_order_id"],
-        "lease_id": job["lease_id"],
-        "started_at": started_at,
-        "completed_at": utc_now(),
-        "status": status,
-        "cycles": cycles,
-        "limits": limits,
-        "project": {
-            "name": project.name,
-            "description": project.description,
-            "status": project.status,
-            "progress": round(float(project.progress), 6),
-            "task_count": len(tasks),
-            "completed_tasks": completed_tasks,
-            "ticket_count": len(project.tickets),
-        },
-        "artifacts": artifacts,
-        "runtime_policy": {
-            "network": "denied-by-audit-hook",
-            "subprocess": "denied-by-audit-hook",
-            "write_scope": str(output_root),
-            "note": "Defense in depth only; this adapter is not an OS security sandbox.",
-        },
-    }
-    receipt["receipt_hash"] = _receipt_hash(receipt)
-    receipt_path = run_dir / "ORGAN_RECEIPT.json"
-    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True), encoding="utf-8")
-    receipt["receipt_path"] = str(receipt_path)
-    return receipt
+        tasks = list(project.tasks)
+        completed_tasks = _completed_task_count(tasks)
+        status = "completed" if project.status == "completed" and bool(artifacts) else "incomplete"
+        receipt: Dict[str, Any] = {
+            "schema": RECEIPT_SCHEMA,
+            "organ": ORGAN_NAME,
+            "capability": CAPABILITY,
+            "job_id": job["job_id"],
+            "work_order_id": job["work_order_id"],
+            "lease_id": job["lease_id"],
+            "started_at": started_at,
+            "completed_at": utc_now(),
+            "status": status,
+            "cycles": cycles,
+            "limits": limits,
+            "project": {
+                "name": project.name,
+                "description": project.description,
+                "status": project.status,
+                "progress": round(float(project.progress), 6),
+                "task_count": len(tasks),
+                "completed_tasks": completed_tasks,
+                "ticket_count": len(project.tickets),
+            },
+            "artifacts": artifacts,
+            "runtime_policy": {
+                "network": "denied-by-audit-hook",
+                "subprocess": "denied-by-audit-hook",
+                "write_scope": str(output_root),
+                "note": "Defense in depth only; this adapter is not an OS security sandbox.",
+            },
+        }
+        receipt["receipt_hash"] = _receipt_hash(receipt)
+        receipt_path = run_dir / "ORGAN_RECEIPT.json"
+        receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True), encoding="utf-8")
+        receipt["receipt_path"] = str(receipt_path)
+        return receipt
+    finally:
+        _ACTIVE_OUTPUT_ROOT.reset(policy_token)
 
 
 def load_job(path: Path) -> Dict[str, Any]:
