@@ -36,17 +36,18 @@ REPEAT
 - dependency cycles;
 - multiple canonical authorities for the same capability;
 - nodes claiming readiness while a dependency is blocked;
-- planned or blocked nodes that are now safe to promote;
+- unsafe requests to auto-promote without readiness evidence;
+- evidence-backed promotions that are safe to apply;
 - external blockers on the critical path.
 
 ## What it may change automatically
 
 Only registered remediation handlers may mutate state. The initial allowlist contains:
 
-- `promote_ready`: promote a planned/blocked node to `ready` when all declared dependencies are operational;
+- `promote_ready`: promote a planned/blocked node only when its dependencies are operational **and** its metadata contains an explicit verified readiness receipt;
 - `demote_blocked`: demote a falsely active/ready node when a dependency is not operational.
 
-Every mutation is followed by a fresh assessment and a receipt containing before/after manifest hashes and gap counts.
+Dependencies being ready are necessary but not sufficient evidence that a capability itself works. The control plane refuses promotion without a receipt. Every mutation is followed by a fresh assessment and a receipt containing before/after manifest hashes and gap counts.
 
 ## What it must not fake
 
