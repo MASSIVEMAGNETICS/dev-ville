@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "name": "Bando-Victor Empire",
+  "nodes": [
+    {
+      "id": "victor.control-plane",
+      "capability": "sovereign-control",
+      "status": "active",
+      "canonical": true,
+      "dependencies": [],
+      "metadata": {
+        "role": "mission -> authority -> lease -> verification -> commit"
+      }
+    },
+    {
+      "id": "chronos.audit",
+      "capability": "causal-history",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane"]
+    },
+    {
+      "id": "devville.machine-labor",
+      "capability": "bounded-execution",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "chronos.audit"]
+    },
+    {
+      "id": "moneyfarm.economic-organ",
+      "capability": "economic-accounting",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["devville.machine-labor", "chronos.audit"]
+    },
+    {
+      "id": "research.organ",
+      "capability": "research",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "chronos.audit"]
+    },
+    {
+      "id": "github.delivery",
+      "capability": "software-delivery",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["devville.machine-labor"]
+    },
+    {
+      "id": "victor.operator",
+      "capability": "local-device-execution",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["victor.control-plane"],
+      "metadata": {
+        "external_blocker": "VICTOR-SSI Operator is still an open draft PR. Its optional external-model planner must remain outside Victor's sovereign cognitive authority or be disabled in sovereign mode."
+      }
+    },
+    {
+      "id": "iambandobandz.front-door",
+      "capability": "public-acquisition",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["victor.control-plane"],
+      "metadata": {
+        "external_blocker": "The production GitHub Pages/DNS state has not yet been verified by this control plane; the production-upgrade PR remains open and currently reports non-mergeable."
+      }
+    },
+    {
+      "id": "bheard.commerce-adapter",
+      "capability": "commerce",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["moneyfarm.economic-organ"],
+      "metadata": {
+        "critical_path": true,
+        "external_blocker": "No production commerce/provider adapter is yet verified end-to-end with authoritative transaction receipts."
+      }
+    },
+    {
+      "id": "revenue.worker",
+      "capability": "revenue-execution",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["bheard.commerce-adapter", "devville.machine-labor"],
+      "metadata": {
+        "critical_path": true,
+        "external_blocker": "The first reliable worker cannot close the revenue loop until a real economic platform adapter is authenticated and verified."
+      }
+    },
+    {
+      "id": "music.compiler",
+      "capability": "music-production",
+      "status": "planned",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "research.organ"],
+      "metadata": {
+        "target": "BMIR -> generator adapters -> AI Ear/BandoRank -> repair -> provenance",
+        "implementation_state": "design_ready_code_unverified"
+      }
+    },
+    {
+      "id": "repo.registry",
+      "capability": "repository-governance",
+      "status": "planned",
+      "canonical": true,
+      "dependencies": ["github.delivery"],
+      "metadata": {
+        "target": "classify repositories as canonical, organ, experiment, fork, or archive; reject duplicate canonical authority"
+      }
+    }
+  ]
+}

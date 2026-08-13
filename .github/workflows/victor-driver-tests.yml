@@ -4,20 +4,21 @@ on:
   pull_request:
     branches:
       - main
-      - agent/evidence-verification-boundary
   push:
     branches:
       - main
-      - agent/evidence-verification-boundary
-      - agent/victor-topology-kernel
 
 permissions:
   contents: read
 
+concurrency:
+  group: victor-driver-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  evidence-and-driver-contracts:
+  complete-runtime-regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -32,45 +33,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Compile authoritative runtime modules
-        run: |
-          python -m py_compile \
-            verification_boundary.py \
-            verified_company.py \
-            evidence_confidence.py \
-            research_organ.py \
-            beta_organ.py \
-            trace0_chronos.py \
-            machine_labor_organs.py \
-            victor_machine_labor.py \
-            victor_vehicle.py \
-            victor_driver.py \
-            victor_capability_registry.py \
-            victor_world_model.py \
-            victor_mission_compiler.py \
-            victor_choice_kernel.py \
-            victor_outcome_resolver.py \
-            victor_learning.py \
-            victor_topology_kernel.py \
-            victor_topological_driver.py \
-            victor_identity_kernel.py \
-            victor_sovereign_driver.py \
-            victor_driver_facade.py \
-            victor_drive.py \
-            devville_verified.py \
-            moneyfarm_economic_organ.py \
-            victor_economic_company.py \
-            devville_moneyfarm.py
+      - name: Compile complete Python runtime
+        run: python -m compileall -q .
 
-      - name: Run Victor regression contracts
-        run: |
-          python -m unittest -v \
-            test_verification_boundary.py \
-            test_machine_labor_organs.py \
-            test_victor_driver.py \
-            test_victor_topology_kernel.py \
-            test_victor_identity_kernel.py \
-            test_victor_learning.py
+      - name: Run complete combined regression
+        run: python -m unittest discover -v -p "test_*.py"
 
-      - name: Run MoneyFarm economic regression contracts
-        run: python test_moneyfarm_economic_organ.py
+      - name: Assess canonical empire topology
+        run: python empire_control_plane.py --check --fail-on-critical

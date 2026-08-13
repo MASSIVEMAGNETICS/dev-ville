@@ -73,6 +73,12 @@ class VictorAdapterTests(unittest.TestCase):
                 self.assertTrue(path.is_file())
                 self.assertEqual(path.stat().st_size, artifact["bytes"])
 
+            # CPython audit hooks are permanent. The organ policy must be inactive
+            # after run_job returns or it contaminates unrelated Victor operations.
+            outside = Path(tmp) / "post-run-write.txt"
+            outside.write_text("audit scope released", encoding="utf-8")
+            self.assertEqual(outside.read_text(encoding="utf-8"), "audit scope released")
+
 
 if __name__ == "__main__":
     unittest.main()
