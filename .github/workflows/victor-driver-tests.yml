@@ -7,6 +7,7 @@ on:
       - agent/evidence-verification-boundary
   push:
     branches:
+      - main
       - agent/evidence-verification-boundary
       - agent/victor-topology-kernel
 
