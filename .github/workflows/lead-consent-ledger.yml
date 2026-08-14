@@ -1,0 +1,26 @@
+name: Lead consent ledger
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile service
+        run: python -m py_compile lead_ledger.py lead_api.py lead_consent_service.py
+      - name: Run lead ledger tests
+        run: python -W error::ResourceWarning -m unittest -v test_lead_consent_service.py
+      - name: Verify CLI contract
+        run: python lead_consent_service.py --help
