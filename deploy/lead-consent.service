@@ -1,0 +1,26 @@
+[Unit]
+Description=IAMBANDOBANDZ Private Lead and Consent Ledger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=iambandobandz
+Group=iambandobandz
+WorkingDirectory=/opt/dev-ville
+EnvironmentFile=/etc/iambandobandz/lead-ledger.env
+ExecStart=/usr/bin/python3 /opt/dev-ville/lead_consent_service.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iambandobandz
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

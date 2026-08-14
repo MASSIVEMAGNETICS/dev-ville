@@ -60,11 +60,26 @@
     {
       "id": "iambandobandz.front-door",
       "capability": "public-acquisition",
-      "status": "blocked",
+      "status": "active",
       "canonical": true,
       "dependencies": ["victor.control-plane"],
       "metadata": {
-        "external_blocker": "The production GitHub Pages/DNS state has not yet been verified by this control plane; the production-upgrade PR remains open and currently reports non-mergeable."
+        "readiness_verified": true,
+        "readiness_receipt": "github-pages-run:31775449116",
+        "role": "canonical public acquisition surface at iambandobandz.com"
+      }
+    },
+    {
+      "id": "iambandobandz.lead-consent-ledger",
+      "capability": "first-party-lead-ledger",
+      "status": "blocked",
+      "canonical": true,
+      "dependencies": ["iambandobandz.front-door", "devville.machine-labor", "chronos.audit"],
+      "metadata": {
+        "critical_path": true,
+        "implementation_state": "service_implemented_ci_required",
+        "privacy_boundary": "PII stays in private SQLite; Chronos receives sanitized hashes and identifiers only",
+        "external_blocker": "Private HTTPS runtime and api.iambandobandz.com DNS are not yet verified end-to-end. Do not cut production browser capture over until health, idempotency, persistence, audit-chain, admin-auth, and untrusted-origin probes pass."
       }
     },
     {
