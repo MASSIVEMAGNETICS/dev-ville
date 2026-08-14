@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "empire_id": "bando-victor-empire",
+  "name": "Bando-Victor Empire",
+  "continuity": {
+    "immutable": true,
+    "termination_permitted": false,
+    "abandonment_permitted": false,
+    "mission_may_be_deleted": false
+  },
+  "mutable_control_surface": [
+    "execution_order",
+    "priority_queue",
+    "resource_allocation",
+    "capital_deployment",
+    "subsystem_state",
+    "implementation"
+  ],
+  "invariants": [
+    "The empire persists as one governed system.",
+    "Components may be paused, replaced, merged, quarantined, or archived without terminating the empire.",
+    "Economic claims require evidence; assertions never become revenue merely because a worker reports them.",
+    "Genesis Capital provenance is permanent even when its balance is deployed, transformed, or multiplied.",
+    "Execution is continuously reorganized toward verified survival, stability, revenue, and family capability without deleting the empire mission."
+  ],
+  "genesis_capital": {
+    "record": "empire_genesis_capital.json",
+    "source": "UnitedMasters",
+    "currency": "USD",
+    "user_designated_amount_cents": 3000,
+    "classification": "receivable",
+    "provenance_immutable": true,
+    "balance_mutable": true
+  }
+}
