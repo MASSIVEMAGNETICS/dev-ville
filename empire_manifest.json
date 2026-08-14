@@ -20,25 +20,56 @@
       "dependencies": ["victor.control-plane"]
     },
     {
+      "id": "empire.constitution",
+      "capability": "empire-continuity",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["victor.control-plane", "chronos.audit"],
+      "metadata": {
+        "policy_file": "empire_constitution.json",
+        "immutable": true,
+        "termination_permitted": false,
+        "abandonment_permitted": false
+      }
+    },
+    {
       "id": "devville.machine-labor",
       "capability": "bounded-execution",
       "status": "active",
       "canonical": true,
-      "dependencies": ["victor.control-plane", "chronos.audit"]
+      "dependencies": ["victor.control-plane", "chronos.audit", "empire.constitution"]
     },
     {
       "id": "moneyfarm.economic-organ",
       "capability": "economic-accounting",
       "status": "active",
       "canonical": true,
-      "dependencies": ["devville.machine-labor", "chronos.audit"]
+      "dependencies": ["devville.machine-labor", "chronos.audit", "empire.constitution"]
+    },
+    {
+      "id": "capital.genesis",
+      "capability": "genesis-capital",
+      "status": "active",
+      "canonical": true,
+      "dependencies": ["moneyfarm.economic-organ", "chronos.audit", "empire.constitution"],
+      "metadata": {
+        "record": "empire_genesis_capital.json",
+        "source": "UnitedMasters",
+        "currency": "USD",
+        "user_designated_amount_cents": 3000,
+        "classification": "receivable",
+        "economic_evidence_status": "user_attested_pending_provider_verification",
+        "provenance_immutable": true,
+        "balance_mutable": true,
+        "principal_policy": "May be deployed only through governed, receipted empire expenditure; genesis provenance is never deleted."
+      }
     },
     {
       "id": "research.organ",
       "capability": "research",
       "status": "active",
       "canonical": true,
-      "dependencies": ["victor.control-plane", "chronos.audit"]
+      "dependencies": ["victor.control-plane", "chronos.audit", "empire.constitution"]
     },
     {
       "id": "github.delivery",
@@ -52,7 +83,7 @@
       "capability": "local-device-execution",
       "status": "blocked",
       "canonical": true,
-      "dependencies": ["victor.control-plane"],
+      "dependencies": ["victor.control-plane", "empire.constitution"],
       "metadata": {
         "external_blocker": "VICTOR-SSI Operator is still an open draft PR. Its optional external-model planner must remain outside Victor's sovereign cognitive authority or be disabled in sovereign mode."
       }
@@ -62,7 +93,7 @@
       "capability": "public-acquisition",
       "status": "blocked",
       "canonical": true,
-      "dependencies": ["victor.control-plane"],
+      "dependencies": ["victor.control-plane", "empire.constitution"],
       "metadata": {
         "external_blocker": "The production GitHub Pages/DNS state has not yet been verified by this control plane; the production-upgrade PR remains open and currently reports non-mergeable."
       }
@@ -72,7 +103,7 @@
       "capability": "commerce",
       "status": "blocked",
       "canonical": true,
-      "dependencies": ["moneyfarm.economic-organ"],
+      "dependencies": ["moneyfarm.economic-organ", "capital.genesis"],
       "metadata": {
         "critical_path": true,
         "external_blocker": "No production commerce/provider adapter is yet verified end-to-end with authoritative transaction receipts."
@@ -83,7 +114,7 @@
       "capability": "revenue-execution",
       "status": "blocked",
       "canonical": true,
-      "dependencies": ["bheard.commerce-adapter", "devville.machine-labor"],
+      "dependencies": ["bheard.commerce-adapter", "devville.machine-labor", "capital.genesis"],
       "metadata": {
         "critical_path": true,
         "external_blocker": "The first reliable worker cannot close the revenue loop until a real economic platform adapter is authenticated and verified."
@@ -94,7 +125,7 @@
       "capability": "music-production",
       "status": "planned",
       "canonical": true,
-      "dependencies": ["victor.control-plane", "research.organ"],
+      "dependencies": ["victor.control-plane", "research.organ", "empire.constitution"],
       "metadata": {
         "target": "BMIR -> generator adapters -> AI Ear/BandoRank -> repair -> provenance",
         "implementation_state": "design_ready_code_unverified"
@@ -105,7 +136,7 @@
       "capability": "repository-governance",
       "status": "planned",
       "canonical": true,
-      "dependencies": ["github.delivery"],
+      "dependencies": ["github.delivery", "empire.constitution"],
       "metadata": {
         "target": "classify repositories as canonical, organ, experiment, fork, or archive; reject duplicate canonical authority"
       }
