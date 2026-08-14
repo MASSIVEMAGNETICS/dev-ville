@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "event_id": "empire-genesis-capital-0001",
+  "empire_id": "bando-victor-empire",
+  "designation_date": "2026-08-13",
+  "asset": {
+    "source": "UnitedMasters",
+    "account_context": "creator earnings balance",
+    "currency": "USD",
+    "user_designated_amount_cents": 3000,
+    "classification": "receivable",
+    "cash_status": "not_assumed_received",
+    "evidence_status": "user_attested_pending_provider_verification"
+  },
+  "governance": {
+    "role": "Genesis Capital",
+    "principal_may_be_deployed": true,
+    "deployment_requires": [
+      "authorized empire purpose",
+      "recorded cost or transfer evidence",
+      "post-action accounting",
+      "preserved genesis provenance"
+    ],
+    "provenance_may_be_deleted": false,
+    "ordinary_discretionary_cash": false
+  },
+  "economic_loop": [
+    "UnitedMasters creator earnings",
+    "Genesis Capital",
+    "governed deployment",
+    "verified receipt",
+    "MoneyFarm accounting",
+    "KEEP/SCALE/CULL",
+    "capital regeneration"
+  ]
+}
