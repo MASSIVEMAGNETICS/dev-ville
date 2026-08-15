@@ -27,9 +27,9 @@
       "dependencies": ["victor.control-plane", "chronos.audit"],
       "metadata": {
         "policy_file": "empire_constitution.json",
-        "immutable": true,
-        "termination_permitted": false,
-        "abandonment_permitted": false
+        "historical_identity_immutable": true,
+        "human_termination_permitted": true,
+        "software_may_block_human_exit": false
       }
     },
     {
