@@ -50,6 +50,21 @@ class EmpireConstitutionTests(unittest.TestCase):
         with self.assertRaises(ConstitutionViolation):
             validate_constitution(altered, self.genesis, self.manifest)
 
+    def test_terminated_state_is_representable_without_erasing_history(self):
+        altered = copy.deepcopy(self.manifest)
+        altered["operating_status"] = "terminated"
+        constitution_node = next(item for item in altered["nodes"] if item["id"] == "empire.constitution")
+        capital_node = next(item for item in altered["nodes"] if item["id"] == "capital.genesis")
+        constitution_node["status"] = "archived"
+        capital_node["status"] = "archived"
+        validate_constitution(self.constitution, self.genesis, altered)
+
+    def test_invalid_operating_status_is_rejected(self):
+        altered = copy.deepcopy(self.manifest)
+        altered["operating_status"] = "immortal"
+        with self.assertRaises(ConstitutionViolation):
+            validate_constitution(self.constitution, self.genesis, altered)
+
     def test_genesis_source_cannot_be_rewritten(self):
         altered = copy.deepcopy(self.genesis)
         altered["asset"]["source"] = "Unknown"
