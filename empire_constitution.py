@@ -1,8 +1,9 @@
 """Machine-enforced constitutional invariants for the Bando-Victor Empire.
 
-This module protects the empire's continuity identity and the provenance of its
-Genesis Capital. Operational priorities and balances may change; the empire
-identity and genesis event may not be silently rewritten.
+This module protects historical identity, provenance, Genesis Capital lineage, and
+human sovereignty. Software may preserve history and continuity, but it may not
+make itself impossible for the authorized human owner to pause, supersede, retire,
+or terminate.
 """
 from __future__ import annotations
 
@@ -16,10 +17,11 @@ CANONICAL_GENESIS_SOURCE = "UnitedMasters"
 CANONICAL_GENESIS_CURRENCY = "USD"
 CANONICAL_USER_DESIGNATED_GENESIS_CENTS = 3000
 CANONICAL_GENESIS_EVENT_ID = "empire-genesis-capital-0001"
+CANONICAL_HUMAN_AUTHORITY = "authorized_human_owner"
 
 
 class ConstitutionViolation(ValueError):
-    """Raised when an immutable empire invariant is violated."""
+    """Raised when a constitutional invariant is violated."""
 
 
 def _load_json(path: Path | str) -> Dict[str, Any]:
@@ -37,20 +39,36 @@ def validate_constitution(
     manifest: Mapping[str, Any],
 ) -> None:
     if constitution.get("empire_id") != CANONICAL_EMPIRE_ID:
-        raise ConstitutionViolation("empire identity may not be changed")
+        raise ConstitutionViolation("empire historical identity may not be changed")
 
     continuity = constitution.get("continuity")
     if not isinstance(continuity, Mapping):
         raise ConstitutionViolation("constitution.continuity is required")
     required_continuity = {
-        "immutable": True,
-        "termination_permitted": False,
-        "abandonment_permitted": False,
-        "mission_may_be_deleted": False,
+        "historical_identity_immutable": True,
+        "human_termination_permitted": True,
+        "human_abandonment_permitted": True,
+        "history_may_be_deleted": False,
     }
     for key, expected in required_continuity.items():
         if continuity.get(key) is not expected:
             raise ConstitutionViolation(f"continuity invariant violated: {key} must be {expected!r}")
+
+    sovereignty = constitution.get("human_sovereignty")
+    if not isinstance(sovereignty, Mapping):
+        raise ConstitutionViolation("constitution.human_sovereignty is required")
+    required_sovereignty = {
+        "ultimate_authority": CANONICAL_HUMAN_AUTHORITY,
+        "may_pause": True,
+        "may_supersede": True,
+        "may_retire": True,
+        "may_terminate": True,
+        "software_may_block_human_exit": False,
+        "termination_preserves_provenance": True,
+    }
+    for key, expected in required_sovereignty.items():
+        if sovereignty.get(key) != expected:
+            raise ConstitutionViolation(f"human sovereignty invariant violated: {key} must be {expected!r}")
 
     genesis_policy = constitution.get("genesis_capital")
     if not isinstance(genesis_policy, Mapping):
@@ -71,7 +89,7 @@ def validate_constitution(
     if genesis.get("event_id") != CANONICAL_GENESIS_EVENT_ID:
         raise ConstitutionViolation("Genesis Capital event identity may not be rewritten")
     if genesis.get("empire_id") != CANONICAL_EMPIRE_ID:
-        raise ConstitutionViolation("Genesis Capital must remain bound to the canonical empire")
+        raise ConstitutionViolation("Genesis Capital must remain bound to the canonical historical identity")
     asset = genesis.get("asset")
     if not isinstance(asset, Mapping):
         raise ConstitutionViolation("genesis asset record is required")
@@ -106,16 +124,22 @@ def validate_constitution(
     if not isinstance(constitution_node, Mapping):
         raise ConstitutionViolation("manifest must contain empire.constitution")
     if constitution_node.get("status") != "active" or constitution_node.get("canonical") is not True:
-        raise ConstitutionViolation("empire.constitution must remain active and canonical")
+        raise ConstitutionViolation("empire.constitution must remain active and canonical while the system is operating")
     constitution_meta = constitution_node.get("metadata")
-    if not isinstance(constitution_meta, Mapping) or constitution_meta.get("immutable") is not True:
-        raise ConstitutionViolation("empire.constitution must remain immutable")
+    if not isinstance(constitution_meta, Mapping):
+        raise ConstitutionViolation("empire.constitution metadata is required")
+    if constitution_meta.get("historical_identity_immutable") is not True:
+        raise ConstitutionViolation("manifest must preserve historical identity")
+    if constitution_meta.get("human_termination_permitted") is not True:
+        raise ConstitutionViolation("manifest must preserve human termination authority")
+    if constitution_meta.get("software_may_block_human_exit") is not False:
+        raise ConstitutionViolation("software may not block authorized human exit")
 
     capital_node = node_by_id.get("capital.genesis")
     if not isinstance(capital_node, Mapping):
         raise ConstitutionViolation("manifest must contain capital.genesis")
     if capital_node.get("status") != "active" or capital_node.get("canonical") is not True:
-        raise ConstitutionViolation("capital.genesis must remain active and canonical")
+        raise ConstitutionViolation("capital.genesis must remain active and canonical while tracked")
     capital_meta = capital_node.get("metadata")
     if not isinstance(capital_meta, Mapping):
         raise ConstitutionViolation("capital.genesis metadata is required")
