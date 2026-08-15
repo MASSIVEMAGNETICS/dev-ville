@@ -1,6 +1,7 @@
 {
   "version": 1,
   "name": "Bando-Victor Empire",
+  "operating_status": "active",
   "nodes": [
     {
       "id": "victor.control-plane",
