@@ -18,6 +18,8 @@ CANONICAL_GENESIS_CURRENCY = "USD"
 CANONICAL_USER_DESIGNATED_GENESIS_CENTS = 3000
 CANONICAL_GENESIS_EVENT_ID = "empire-genesis-capital-0001"
 CANONICAL_HUMAN_AUTHORITY = "authorized_human_owner"
+OPERATING_STATUSES = {"active", "paused", "superseded", "retired", "terminated"}
+EXIT_STATUSES = {"superseded", "retired", "terminated"}
 
 
 class ConstitutionViolation(ValueError):
@@ -112,6 +114,10 @@ def validate_constitution(
     if governance.get("principal_may_be_deployed") is not True:
         raise ConstitutionViolation("genesis principal must remain deployable through governed execution")
 
+    operating_status = str(manifest.get("operating_status", "active"))
+    if operating_status not in OPERATING_STATUSES:
+        raise ConstitutionViolation(f"unsupported operating_status: {operating_status!r}")
+
     nodes = manifest.get("nodes")
     if not isinstance(nodes, list):
         raise ConstitutionViolation("manifest.nodes must be a list")
@@ -122,9 +128,14 @@ def validate_constitution(
     }
     constitution_node = node_by_id.get("empire.constitution")
     if not isinstance(constitution_node, Mapping):
-        raise ConstitutionViolation("manifest must contain empire.constitution")
-    if constitution_node.get("status") != "active" or constitution_node.get("canonical") is not True:
-        raise ConstitutionViolation("empire.constitution must remain active and canonical while the system is operating")
+        raise ConstitutionViolation("manifest must retain empire.constitution as historical provenance")
+    if constitution_node.get("canonical") is not True:
+        raise ConstitutionViolation("empire.constitution must remain the canonical historical constitution")
+    expected_constitution_status = "archived" if operating_status in EXIT_STATUSES else "active"
+    if constitution_node.get("status") != expected_constitution_status:
+        raise ConstitutionViolation(
+            f"empire.constitution status must be {expected_constitution_status!r} when operating_status={operating_status!r}"
+        )
     constitution_meta = constitution_node.get("metadata")
     if not isinstance(constitution_meta, Mapping):
         raise ConstitutionViolation("empire.constitution metadata is required")
@@ -137,9 +148,14 @@ def validate_constitution(
 
     capital_node = node_by_id.get("capital.genesis")
     if not isinstance(capital_node, Mapping):
-        raise ConstitutionViolation("manifest must contain capital.genesis")
-    if capital_node.get("status") != "active" or capital_node.get("canonical") is not True:
-        raise ConstitutionViolation("capital.genesis must remain active and canonical while tracked")
+        raise ConstitutionViolation("manifest must retain capital.genesis as historical provenance")
+    if capital_node.get("canonical") is not True:
+        raise ConstitutionViolation("capital.genesis must remain canonical historical provenance")
+    expected_capital_status = "archived" if operating_status in EXIT_STATUSES else "active"
+    if capital_node.get("status") != expected_capital_status:
+        raise ConstitutionViolation(
+            f"capital.genesis status must be {expected_capital_status!r} when operating_status={operating_status!r}"
+        )
     capital_meta = capital_node.get("metadata")
     if not isinstance(capital_meta, Mapping):
         raise ConstitutionViolation("capital.genesis metadata is required")
