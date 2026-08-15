@@ -26,15 +26,27 @@ class EmpireConstitutionTests(unittest.TestCase):
             ROOT / "empire_manifest.json",
         )
 
-    def test_empire_cannot_be_made_terminable(self):
+    def test_human_termination_authority_cannot_be_removed(self):
         altered = copy.deepcopy(self.constitution)
-        altered["continuity"]["termination_permitted"] = True
+        altered["continuity"]["human_termination_permitted"] = False
         with self.assertRaises(ConstitutionViolation):
             validate_constitution(altered, self.genesis, self.manifest)
 
-    def test_empire_cannot_be_made_abandonable(self):
+    def test_human_abandonment_authority_cannot_be_removed(self):
         altered = copy.deepcopy(self.constitution)
-        altered["continuity"]["abandonment_permitted"] = True
+        altered["continuity"]["human_abandonment_permitted"] = False
+        with self.assertRaises(ConstitutionViolation):
+            validate_constitution(altered, self.genesis, self.manifest)
+
+    def test_software_cannot_block_human_exit(self):
+        altered = copy.deepcopy(self.constitution)
+        altered["human_sovereignty"]["software_may_block_human_exit"] = True
+        with self.assertRaises(ConstitutionViolation):
+            validate_constitution(altered, self.genesis, self.manifest)
+
+    def test_termination_must_preserve_provenance(self):
+        altered = copy.deepcopy(self.constitution)
+        altered["human_sovereignty"]["termination_preserves_provenance"] = False
         with self.assertRaises(ConstitutionViolation):
             validate_constitution(altered, self.genesis, self.manifest)
 
@@ -62,10 +74,10 @@ class EmpireConstitutionTests(unittest.TestCase):
         with self.assertRaises(ConstitutionViolation):
             validate_constitution(self.constitution, altered, self.manifest)
 
-    def test_manifest_must_keep_constitution_active(self):
+    def test_manifest_must_preserve_human_termination_authority(self):
         altered = copy.deepcopy(self.manifest)
         node = next(item for item in altered["nodes"] if item["id"] == "empire.constitution")
-        node["status"] = "archived"
+        node["metadata"]["human_termination_permitted"] = False
         with self.assertRaises(ConstitutionViolation):
             validate_constitution(self.constitution, self.genesis, altered)
 
