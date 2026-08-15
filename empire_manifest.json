@@ -86,7 +86,7 @@
       "canonical": true,
       "dependencies": ["victor.control-plane", "empire.constitution"],
       "metadata": {
-        "external_blocker": "VICTOR-SSI Operator is still an open draft PR. Its optional external-model planner must remain outside Victor's sovereign cognitive authority or be disabled in sovereign mode."
+        "external_blocker": "VICTOR-SSI Operator remains an open draft PR. Its hosted cognition fallback has been removed on the branch; canonical readiness remains blocked pending exact-head CI evidence, human review, and merge."
       }
     },
     {
@@ -96,7 +96,7 @@
       "canonical": true,
       "dependencies": ["victor.control-plane", "empire.constitution"],
       "metadata": {
-        "external_blocker": "The production GitHub Pages/DNS state has not yet been verified by this control plane; the production-upgrade PR remains open and currently reports non-mergeable."
+        "external_blocker": "The production-upgrade PR has merged, but this control plane has not yet committed live DNS/HTTPS behavior or the private first-party lead-capture path as verified evidence. Canonical readiness remains blocked pending live verification."
       }
     },
     {
