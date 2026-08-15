@@ -100,6 +100,58 @@ class EmpireChronosBridgeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ChronosLedger(str(chronos_path))
 
+    def test_out_of_band_manifest_change_fails_closed_before_next_run(self):
+        manifest = {"version": 1, "nodes": [
+            {"id": "control", "capability": "control", "status": "active", "dependencies": []},
+        ]}
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bridge = self.make_bridge(root, manifest)
+            bridge.run(apply=False)
+
+            altered = json.loads((root / "empire_manifest.json").read_text(encoding="utf-8"))
+            altered["nodes"][0]["status"] = "planned"
+            (root / "empire_manifest.json").write_text(json.dumps(altered), encoding="utf-8")
+
+            before_events = ChronosLedger(str(root / "chronos" / "empire.jsonl")).events()
+            with self.assertRaisesRegex(RuntimeError, "current manifest"):
+                bridge.run(apply=False)
+            after_events = ChronosLedger(str(root / "chronos" / "empire.jsonl")).events()
+            self.assertEqual(before_events, after_events)
+
+    def test_missing_latest_sidecar_fails_closed_before_next_run(self):
+        manifest = {"version": 1, "nodes": [
+            {"id": "control", "capability": "control", "status": "active", "dependencies": []},
+        ]}
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bridge = self.make_bridge(root, manifest)
+            first = bridge.run(apply=False)
+            sidecar = root / "receipts" / f"{first.control_plane.receipt_id}.json"
+            sidecar.unlink()
+
+            before_count = len(ChronosLedger(str(root / "chronos" / "empire.jsonl")).events())
+            with self.assertRaisesRegex(RuntimeError, "sidecar receipt is missing"):
+                bridge.run(apply=False)
+            after_count = len(ChronosLedger(str(root / "chronos" / "empire.jsonl")).events())
+            self.assertEqual(before_count, after_count)
+
+    def test_tampered_latest_sidecar_fails_closed_before_next_run(self):
+        manifest = {"version": 1, "nodes": [
+            {"id": "control", "capability": "control", "status": "active", "dependencies": []},
+        ]}
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bridge = self.make_bridge(root, manifest)
+            first = bridge.run(apply=False)
+            sidecar = root / "receipts" / f"{first.control_plane.receipt_id}.json"
+            payload = json.loads(sidecar.read_text(encoding="utf-8"))
+            payload["manifest_hash_after"] = "0" * 64
+            sidecar.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "sidecar manifest_hash_after"):
+                bridge.run(apply=False)
+
 
 if __name__ == "__main__":
     unittest.main()
