@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "empire_id": "bando-victor-empire",
+  "name": "Bando-Victor Empire",
+  "continuity": {
+    "historical_identity_immutable": true,
+    "human_termination_permitted": true,
+    "human_abandonment_permitted": true,
+    "history_may_be_deleted": false
+  },
+  "human_sovereignty": {
+    "ultimate_authority": "authorized_human_owner",
+    "may_pause": true,
+    "may_supersede": true,
+    "may_retire": true,
+    "may_terminate": true,
+    "software_may_block_human_exit": false,
+    "termination_preserves_provenance": true
+  },
+  "mutable_control_surface": [
+    "execution_order",
+    "priority_queue",
+    "resource_allocation",
+    "capital_deployment",
+    "subsystem_state",
+    "implementation",
+    "mission",
+    "operating_status"
+  ],
+  "invariants": [
+    "The historical identity and provenance of the empire may not be silently rewritten.",
+    "The authorized human owner retains ultimate authority to pause, supersede, retire, abandon, or terminate the operating system.",
+    "Termination or retirement does not authorize deletion or falsification of historical provenance.",
+    "Components may be paused, replaced, merged, quarantined, archived, or retired under human authority.",
+    "Economic claims require evidence; assertions never become revenue merely because a worker reports them.",
+    "Genesis Capital provenance is permanent even when its balance is deployed, transformed, or multiplied."
+  ],
+  "genesis_capital": {
+    "record": "empire_genesis_capital.json",
+    "source": "UnitedMasters",
+    "currency": "USD",
+    "user_designated_amount_cents": 3000,
+    "classification": "receivable",
+    "provenance_immutable": true,
+    "balance_mutable": true
+  }
+}
