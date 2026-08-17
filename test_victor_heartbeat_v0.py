@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from victor_heartbeat_v0 import MEANING_DIMENSIONS, VictorHeartbeatV0
+from victor_heartbeat_v0_runtime import MEANING_DIMENSIONS, VictorHeartbeatV0
 
 
 class VictorCanonicalHeartbeatV0Tests(unittest.TestCase):
