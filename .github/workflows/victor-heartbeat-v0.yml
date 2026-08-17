@@ -1,0 +1,45 @@
+name: Victor Canonical Heartbeat v0
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  heartbeat-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile heartbeat integration
+        run: python -m py_compile victor_heartbeat_v0.py test_victor_heartbeat_v0.py
+
+      - name: Run heartbeat contract with annotated failure tail
+        shell: bash
+        run: |
+          set +e
+          python -m unittest -v test_victor_heartbeat_v0.py 2>&1 | tee heartbeat-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            tail_text=$(tail -n 30 heartbeat-test.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error file=test_victor_heartbeat_v0.py,title=Victor heartbeat contract failed::${tail_text}"
+            exit "$status"
+          fi
