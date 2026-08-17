@@ -1,0 +1,16 @@
+{
+  "state_dir": ".rcp",
+  "github_org": "MASSIVEMAGNETICS",
+  "canonical_repos": [
+    "MASSIVEMAGNETICS.github.io",
+    "dev-ville",
+    "omni",
+    "truth-compiler-ai",
+    "victor_empire"
+  ],
+  "auto_max_risk": "R1",
+  "lease_minutes": 20,
+  "inspect_github_root": true,
+  "publish_draft_pr": false,
+  "max_auto_cases_per_run": 10
+}
