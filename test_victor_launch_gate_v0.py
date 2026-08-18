@@ -6,13 +6,12 @@ import shutil
 import tempfile
 import unittest
 
-from victor_launch_gate_v0 import (
+from victor_launch_gate_v0_runtime import (
     TRUTH_COMPILER_COMMIT,
     TRUTH_COMPILER_FILE_SHA256,
     TruthCompilerBridge,
     VictorLaunchGateV0,
 )
-
 
 COMPILER_PATH = os.environ.get("VICTOR_TRUTH_COMPILER_PATH")
 
@@ -85,6 +84,7 @@ class VictorLaunchGateV0Tests(unittest.TestCase):
             event_count = len(first.ledger.events())
             heartbeat_id = result["heartbeat_id"]
 
+            # New runtime object: no transcript, no prior in-memory reasoning.
             restarted = VictorLaunchGateV0(
                 chronos_path=str(ledger),
                 sandbox_root=str(sandbox),
