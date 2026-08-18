@@ -1,9 +1,8 @@
-"""Victor launch-gate integration with the pinned Truth Compiler and Chronos-only recovery.
+"""Victor strict v0 launch-gate integration.
 
-This module intentionally composes the canonical heartbeat organs rather than
-creating another sovereign kernel. The external Truth Compiler is invoked only
-through a file-hash-pinned JSON interface; Aether execution remains limited by
-the existing capability lease and sandbox adapter.
+Composes the existing canonical heartbeat with a hash-pinned external Truth
+Compiler and a recovery explainer whose only inputs are Chronos and the rebuilt
+world graph. It does not create a second sovereign Victor kernel.
 """
 from __future__ import annotations
 
@@ -37,15 +36,14 @@ from victor_heartbeat_v0 import (
     _utc_now,
 )
 
-
 TRUTH_COMPILER_REPOSITORY = "MASSIVEMAGNETICS/truth-compiler-ai"
 TRUTH_COMPILER_COMMIT = "f06ff18698176d1ae6c83a2fd78dc8a75ec246ea"
-TRUTH_COMPILER_FILE_SHA256 = "5fb9a0023edc1ef5ea99607d4a473e4ccc5938182ea18328a51e911c6dcc5f3e"
+TRUTH_COMPILER_FILE_SHA256 = "ea7404bf3f785986b1099ac050048be54abf6a2f3d566d76749e9521b4cac94e"
 TRUTH_COMPILER_SCHEMA = "truth.compiler.contract.v1"
 
 
 class TruthCompilerBridge:
-    """Hash-pinned bridge to the actual Truth Compiler JSON contract."""
+    """Invoke the exact external Truth Compiler artifact selected by the launch gate."""
 
     def __init__(self, script_path: str, *, timeout_seconds: float = 5.0):
         self.script_path = Path(script_path).resolve()
@@ -69,8 +67,8 @@ class TruthCompilerBridge:
         }
 
     @staticmethod
-    def _provenance_sha(value: Any) -> str:
-        return sha256_json(value)
+    def _prov(value: Any) -> Dict[str, str]:
+        return {"sha256": sha256_json(value)}
 
     def _request(
         self,
@@ -89,13 +87,13 @@ class TruthCompilerBridge:
             required_facts.append(fact_key)
             row = by_path.get(path)
             if row is None:
-                missing_core = {"heartbeat_id": heartbeat_id, "path": path, "missing": True}
+                core = {"heartbeat_id": heartbeat_id, "path": path, "missing": True}
                 evidence.append({
-                    "evidence_id": _stable_id("evidence", missing_core),
+                    "evidence_id": _stable_id("evidence", core),
                     "status": "UNKNOWN",
                     "source": "victor.perception",
                     "independence_group": "missing-observation",
-                    "provenance": {"sha256": self._provenance_sha(missing_core)},
+                    "provenance": self._prov(core),
                     "facts": {},
                 })
                 continue
@@ -106,45 +104,51 @@ class TruthCompilerBridge:
                 status = "CONTRADICTED"
             else:
                 status = "SUPPORTED"
-            source_core = {
+            core = {
                 "variable_id": row.variable_id,
                 "path": row.path,
                 "value": row.value,
                 "provenance": row.provenance,
             }
             evidence.append({
-                "evidence_id": _stable_id("evidence", source_core),
+                "evidence_id": _stable_id("evidence", core),
                 "status": status,
                 "source": "victor.perception",
+                # Same originating percept/provenance is one evidence group even
+                # when multiple semantic projections refer to it.
                 "independence_group": "observation:" + sha256_json(row.provenance)[:24],
-                "provenance": {"sha256": self._provenance_sha(source_core)},
+                "provenance": self._prov(core),
                 "facts": {fact_key: row.value},
             })
 
         for unknown in candidate.unknowns:
-            unknown_core = {"heartbeat_id": heartbeat_id, "candidate_id": candidate.candidate_id, "unknown": unknown}
+            core = {
+                "heartbeat_id": heartbeat_id,
+                "candidate_id": candidate.candidate_id,
+                "unknown": unknown,
+            }
             evidence.append({
-                "evidence_id": _stable_id("evidence", unknown_core),
+                "evidence_id": _stable_id("evidence", core),
                 "status": "UNKNOWN",
                 "source": "victor.candidate",
                 "independence_group": "candidate-declared-unknowns",
-                "provenance": {"sha256": self._provenance_sha(unknown_core)},
+                "provenance": self._prov(core),
                 "facts": {},
             })
 
         contradiction_count = int(interrogation.get("contradiction_count", 0) or 0)
         if contradiction_count:
-            contradiction_core = {
+            core = {
                 "heartbeat_id": heartbeat_id,
                 "candidate_id": candidate.candidate_id,
                 "contradiction_count": contradiction_count,
             }
             evidence.append({
-                "evidence_id": _stable_id("evidence", contradiction_core),
+                "evidence_id": _stable_id("evidence", core),
                 "status": "CONTRADICTED",
                 "source": "victor.semantic_scan",
                 "independence_group": "semantic-scan-contradictions",
-                "provenance": {"sha256": self._provenance_sha(contradiction_core)},
+                "provenance": self._prov(core),
                 "facts": {},
             })
 
@@ -230,9 +234,9 @@ class TruthCompilerBridge:
 
 
 class RecoveryExplainer:
-    """Reconstruct the epistemic/action trace exclusively from Chronos + rebuilt graph."""
+    """Recover one heartbeat solely from canonical events and rebuilt world state."""
 
-    STAGES = (
+    STAGES = frozenset({
         "heartbeat.perception",
         "heartbeat.interpretation",
         "heartbeat.mapping",
@@ -244,7 +248,7 @@ class RecoveryExplainer:
         "heartbeat.execution_verified",
         "heartbeat.completed",
         "heartbeat.blocked",
-    )
+    })
 
     @classmethod
     def explain(
@@ -254,53 +258,52 @@ class RecoveryExplainer:
         world: Mapping[str, Any],
         heartbeat_id: str,
     ) -> Dict[str, Any]:
-        stage_rows: Dict[str, Mapping[str, Any]] = {}
-        stage_event_ids: Dict[str, str] = {}
+        rows: Dict[str, Mapping[str, Any]] = {}
+        event_ids: Dict[str, str] = {}
         for event in events:
             if str(event.get("entity_id") or "") != heartbeat_id:
                 continue
-            action = str(event.get("action") or "")
-            if action not in cls.STAGES:
-                continue
-            stage_rows[action] = dict(event.get("payload") or {})
-            stage_event_ids[action] = str(event.get("event_id") or "")
+            stage = str(event.get("action") or "")
+            if stage in cls.STAGES:
+                rows[stage] = dict(event.get("payload") or {})
+                event_ids[stage] = str(event.get("event_id") or "")
 
-        perception = dict(stage_rows.get("heartbeat.perception") or {})
-        interpretation = dict(stage_rows.get("heartbeat.interpretation") or {})
-        mapping = dict(stage_rows.get("heartbeat.mapping") or {})
-        future = dict(stage_rows.get("heartbeat.future_field") or {})
-        deep = dict(stage_rows.get("heartbeat.deep_interrogation") or {})
-        orch1 = dict(stage_rows.get("heartbeat.orch1") or {})
-        orch2 = dict(stage_rows.get("heartbeat.orch2") or {})
-        authorized = dict(stage_rows.get("heartbeat.authorized") or {})
-        execution = dict(stage_rows.get("heartbeat.execution_verified") or {})
-        terminal = dict(stage_rows.get("heartbeat.completed") or stage_rows.get("heartbeat.blocked") or {})
+        perception = dict(rows.get("heartbeat.perception") or {})
+        interpretation = dict(rows.get("heartbeat.interpretation") or {})
+        mapping = dict(rows.get("heartbeat.mapping") or {})
+        future = dict(rows.get("heartbeat.future_field") or {})
+        deep = dict(rows.get("heartbeat.deep_interrogation") or {})
+        orch1 = dict(rows.get("heartbeat.orch1") or {})
+        orch2 = dict(rows.get("heartbeat.orch2") or {})
+        authorized = dict(rows.get("heartbeat.authorized") or {})
+        execution = dict(rows.get("heartbeat.execution_verified") or {})
+        terminal = dict(rows.get("heartbeat.completed") or rows.get("heartbeat.blocked") or {})
 
         candidates = list(future.get("candidates") or [])
         interrogation = dict(deep.get("interrogation") or {})
-        truth_rows = dict(deep.get("truth_compiler") or {})
-        unknowns: List[Dict[str, Any]] = []
+        truth = dict(deep.get("truth_compiler") or {})
+        chosen_id = ((orch2.get("decision") or {}).get("selected_candidate_id"))
+        chosen = next((x for x in candidates if x.get("candidate_id") == chosen_id), None)
+
+        unknown: List[Dict[str, Any]] = []
         for candidate in candidates:
             cid = str(candidate.get("candidate_id") or "")
             analysis = dict(interrogation.get(cid) or {})
-            truth = dict(truth_rows.get(cid) or {})
-            candidate_unknowns = list(candidate.get("unknowns") or [])
+            compiled = dict(truth.get(cid) or {})
+            declared = list(candidate.get("unknowns") or [])
             missing = list(analysis.get("missing_evidence_paths") or [])
-            if candidate_unknowns or missing or truth.get("verdict") != "VERIFIED":
-                unknowns.append({
+            if declared or missing or compiled.get("verdict") != "VERIFIED":
+                unknown.append({
                     "candidate_id": cid,
-                    "declared_unknowns": candidate_unknowns,
+                    "declared_unknowns": declared,
                     "missing_evidence_paths": missing,
-                    "truth_verdict": truth.get("verdict", "UNKNOWN"),
-                    "truth_reasons": list(truth.get("reasons") or []),
+                    "truth_verdict": compiled.get("verdict", "UNKNOWN"),
+                    "truth_reasons": list(compiled.get("reasons") or []),
                 })
 
-        chosen_id = ((orch2.get("decision") or {}).get("selected_candidate_id"))
-        chosen = next((row for row in candidates if row.get("candidate_id") == chosen_id), None)
-        final_result = dict(terminal.get("result") or {})
         verification = dict(execution.get("verification") or {})
         ctp = dict(execution.get("ctp") or {})
-
+        final_result = dict(terminal.get("result") or {})
         recovered = {
             "schema_version": "victor.recovery_explanation.v0",
             "heartbeat_id": heartbeat_id,
@@ -314,7 +317,7 @@ class RecoveryExplainer:
                 "relations": list(mapping.get("relations") or []),
                 "scan": dict(mapping.get("scan") or {}),
             },
-            "unknown": unknowns,
+            "unknown": unknown,
             "considered": {
                 "candidates": candidates,
                 "orch1": dict(orch1.get("decision") or {}),
@@ -334,7 +337,7 @@ class RecoveryExplainer:
                 "execution_receipt": dict(execution.get("execution") or {}),
             },
             "verified": {
-                "truth_compiler": dict(truth_rows.get(chosen_id) or {}),
+                "truth_compiler": dict(truth.get(chosen_id) or {}),
                 "outcome": verification,
                 "ctp": ctp,
             },
@@ -346,14 +349,14 @@ class RecoveryExplainer:
                 "world_state_sha256": world.get("state_sha256"),
                 "chronos_terminal_recorded": bool(terminal),
             },
-            "chronos_stage_event_ids": stage_event_ids,
+            "chronos_stage_event_ids": event_ids,
         }
         recovered["explanation_sha256"] = sha256_json(recovered)
         return recovered
 
 
 class VictorLaunchGateV0(VictorHeartbeatV0):
-    """Canonical heartbeat with actual Truth Compiler and transcript-free recovery proof."""
+    """Heartbeat variant that requires the real pinned Truth Compiler."""
 
     def __init__(
         self,
@@ -394,16 +397,16 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
         self._observe(heartbeat_id, "heartbeat.perception", {
             "heartbeat_id": heartbeat_id,
             "variable_count": len(variables),
-            "variables": [row.to_dict() for row in variables],
-            "variables_sha256": sha256_json([row.to_dict() for row in variables]),
+            "variables": [x.to_dict() for x in variables],
+            "variables_sha256": sha256_json([x.to_dict() for x in variables]),
         })
 
         projections = self.interpreters.project(variables, context)
         self._observe(heartbeat_id, "heartbeat.interpretation", {
             "heartbeat_id": heartbeat_id,
-            "dimensions": tuple(row.dimension for row in projections),
-            "projections": [row.to_dict() for row in projections],
-            "projections_sha256": sha256_json([row.to_dict() for row in projections]),
+            "dimensions": tuple(x.dimension for x in projections),
+            "projections": [x.to_dict() for x in projections],
+            "projections_sha256": sha256_json([x.to_dict() for x in projections]),
         })
 
         relations = CrossReferencer.relate(variables)
@@ -412,7 +415,7 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
         self._observe(heartbeat_id, "heartbeat.mapping", {
             "heartbeat_id": heartbeat_id,
             "scan": scan,
-            "relations": [row.to_dict() for row in relations],
+            "relations": [x.to_dict() for x in relations],
             "relation_count": len(relations),
         }, mutations)
 
@@ -420,42 +423,48 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
         self._observe(heartbeat_id, "heartbeat.future_field", {
             "heartbeat_id": heartbeat_id,
             "candidate_count": len(candidates),
-            "candidates": [row.to_dict() for row in candidates],
+            "candidates": [x.to_dict() for x in candidates],
             "reality_lever_ranking": RealityLever.order(candidates),
         })
 
         orch1 = OrchEngine.pass1(candidates)
-        self._observe(heartbeat_id, "heartbeat.orch1", {"heartbeat_id": heartbeat_id, "decision": orch1.to_dict()})
+        self._observe(heartbeat_id, "heartbeat.orch1", {
+            "heartbeat_id": heartbeat_id,
+            "decision": orch1.to_dict(),
+        })
 
-        variable_paths = tuple(row.path for row in variables)
+        variable_paths = tuple(x.path for x in variables)
         interrogation = {
-            row.candidate_id: DeepInterrogator.analyze(row, scan, variable_paths)
-            for row in candidates
+            x.candidate_id: DeepInterrogator.analyze(x, scan, variable_paths)
+            for x in candidates
         }
-        truth_compiler = {
-            row.candidate_id: self.truth_compiler.compile_candidate(
+        compiled = {
+            x.candidate_id: self.truth_compiler.compile_candidate(
                 heartbeat_id=heartbeat_id,
-                candidate=row,
-                interrogation=interrogation[row.candidate_id],
+                candidate=x,
+                interrogation=interrogation[x.candidate_id],
                 variables=variables,
             )
-            for row in candidates
+            for x in candidates
         }
         truth_for_orch = {
-            candidate_id: self.truth_compiler.orch_status(result)
-            for candidate_id, result in truth_compiler.items()
+            cid: self.truth_compiler.orch_status(result)
+            for cid, result in compiled.items()
         }
         self._observe(heartbeat_id, "heartbeat.deep_interrogation", {
             "heartbeat_id": heartbeat_id,
             "interrogation": interrogation,
             "truth": truth_for_orch,
-            "truth_compiler": truth_compiler,
+            "truth_compiler": compiled,
             "truth_compiler_identity": self.truth_compiler.identity,
         })
 
         orch2 = OrchEngine.pass2(candidates, interrogation, truth_for_orch)
-        self._observe(heartbeat_id, "heartbeat.orch2", {"heartbeat_id": heartbeat_id, "decision": orch2.to_dict()})
-        by_id = {row.candidate_id: row for row in candidates}
+        self._observe(heartbeat_id, "heartbeat.orch2", {
+            "heartbeat_id": heartbeat_id,
+            "decision": orch2.to_dict(),
+        })
+        by_id = {x.candidate_id: x for x in candidates}
         selected = by_id.get(orch2.selected_candidate_id or "")
         if selected is None:
             result = {
@@ -464,26 +473,28 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
                 "status": "blocked",
                 "reason": "no_candidate_survived_orch2",
                 "variable_count": len(variables),
-                "meaning_dimensions": tuple(row.dimension for row in projections),
+                "meaning_dimensions": tuple(x.dimension for x in projections),
                 "truth_compiler_identity": self.truth_compiler.identity,
-                "truth_compiler": truth_compiler,
+                "truth_compiler": compiled,
                 "orch1": orch1.to_dict(),
                 "orch2": orch2.to_dict(),
                 "chronos_head": self.ledger.last_chain_hash,
                 "world_state_sha256": self.world.snapshot()["state_sha256"],
             }
-            self._observe(heartbeat_id, "heartbeat.blocked", {"heartbeat_id": heartbeat_id, "result": result})
+            self._observe(heartbeat_id, "heartbeat.blocked", {
+                "heartbeat_id": heartbeat_id,
+                "result": result,
+            })
             result["chronos_head"] = self.ledger.last_chain_hash
             result["world_state_sha256"] = self.world.snapshot()["state_sha256"]
             return result
 
-        selected_truth = truth_compiler[selected.candidate_id]
+        selected_truth = compiled[selected.candidate_id]
         if selected_truth.get("verdict") != "VERIFIED":
-            raise RuntimeError("ORCH_2 selected a candidate not verified by Truth Compiler")
+            raise RuntimeError("ORCH_2 selected a candidate not VERIFIED by Truth Compiler")
 
         plan = AgencyPlanner.plan(selected)
-        compiler = TaskCompiler(self.sandbox_root, clock=self.clock)
-        lease = compiler.compile(heartbeat_id, plan)
+        lease = TaskCompiler(self.sandbox_root, clock=self.clock).compile(heartbeat_id, plan)
         self._observe(heartbeat_id, "heartbeat.authorized", {
             "heartbeat_id": heartbeat_id,
             "candidate_id": selected.candidate_id,
@@ -506,7 +517,10 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
         if not completed or not verification.verified:
             raise RuntimeError("bounded execution failed independent verification")
 
-        outcome_id = _stable_id("outcome", {"heartbeat_id": heartbeat_id, "ctp": ctp["transition_sha256"]})
+        outcome_id = _stable_id("outcome", {
+            "heartbeat_id": heartbeat_id,
+            "ctp": ctp["transition_sha256"],
+        })
         final_mutations = [
             {"op": "upsert_node", "node_id": selected.candidate_id, "node_type": "candidate", "attributes": {"label": selected.label, "truth_verdict": selected_truth.get("verdict")}},
             {"op": "upsert_node", "node_id": lease.lease_id, "node_type": "capability_lease", "attributes": {"action_type": lease.action_type}},
@@ -521,7 +535,7 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
             "status": "completed",
             "selected_candidate_id": selected.candidate_id,
             "variable_count": len(variables),
-            "meaning_dimensions": tuple(row.dimension for row in projections),
+            "meaning_dimensions": tuple(x.dimension for x in projections),
             "truth_compiler_identity": self.truth_compiler.identity,
             "truth_compiler": selected_truth,
             "orch1": orch1.to_dict(),
@@ -550,13 +564,18 @@ class VictorLaunchGateV0(VictorHeartbeatV0):
         )
 
 
-def from_environment(*, chronos_path: str, sandbox_root: str, clock: Callable[[], datetime] = _utc_now) -> VictorLaunchGateV0:
-    compiler_path = os.environ.get("VICTOR_TRUTH_COMPILER_PATH")
-    if not compiler_path:
+def from_environment(
+    *,
+    chronos_path: str,
+    sandbox_root: str,
+    clock: Callable[[], datetime] = _utc_now,
+) -> VictorLaunchGateV0:
+    compiler = os.environ.get("VICTOR_TRUTH_COMPILER_PATH")
+    if not compiler:
         raise ValueError("VICTOR_TRUTH_COMPILER_PATH is required")
     return VictorLaunchGateV0(
         chronos_path=chronos_path,
         sandbox_root=sandbox_root,
-        truth_compiler_path=compiler_path,
+        truth_compiler_path=compiler,
         clock=clock,
     )
