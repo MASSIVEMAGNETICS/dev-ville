@@ -25,6 +25,7 @@ MAX_BODY_BYTES = 8192
 MAX_ADMIN_BODY_BYTES = 4096
 ADMIN_SESSION_COOKIE = "__Host-iambandobandz_admin"
 ADMIN_SESSION_VERSION = "v1"
+MIN_ADMIN_SESSION_SECRET_BYTES = 32
 
 
 class SlidingWindowLimiter:
@@ -130,16 +131,25 @@ class ServiceConfig:
         ttl = int(os.getenv("LEAD_ADMIN_SESSION_TTL_SECONDS", str(8 * 60 * 60)))
         if ttl < 300 or ttl > 7 * 24 * 60 * 60:
             raise RuntimeError("LEAD_ADMIN_SESSION_TTL_SECONDS must be between 300 and 604800")
+        admin_token = os.getenv("LEAD_ADMIN_TOKEN", "")
+        admin_session_secret_raw = os.getenv("LEAD_ADMIN_SESSION_SECRET", "")
+        admin_session_secret = admin_session_secret_raw.encode("utf-8")
+        if admin_session_secret and len(admin_session_secret) < MIN_ADMIN_SESSION_SECRET_BYTES:
+            raise RuntimeError(
+                f"LEAD_ADMIN_SESSION_SECRET must be at least {MIN_ADMIN_SESSION_SECRET_BYTES} bytes"
+            )
+        if admin_session_secret_raw and admin_token and admin_session_secret_raw == admin_token:
+            raise RuntimeError("LEAD_ADMIN_SESSION_SECRET must be independent from LEAD_ADMIN_TOKEN")
         return cls(
             db_path=Path(os.getenv("LEAD_DB_PATH", "state/private/lead_consent.sqlite3")),
             bind_host=os.getenv("LEAD_BIND_HOST", "127.0.0.1"),
             bind_port=int(os.getenv("LEAD_BIND_PORT", "8787")),
             allowed_origins=origins,
             privacy_hash_key=hash_key,
-            admin_token=os.getenv("LEAD_ADMIN_TOKEN", ""),
+            admin_token=admin_token,
             ingest_token=os.getenv("LEAD_INGEST_TOKEN", ""),
             trust_proxy=os.getenv("LEAD_TRUST_PROXY", "0") == "1",
-            admin_session_secret=os.getenv("LEAD_ADMIN_SESSION_SECRET", "").encode("utf-8"),
+            admin_session_secret=admin_session_secret,
             admin_session_ttl_seconds=ttl,
         )
 
