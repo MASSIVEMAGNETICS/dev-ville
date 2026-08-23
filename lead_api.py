@@ -1,10 +1,11 @@
-"""HTTP boundary and optional notification adapter for the private lead ledger."""
+"""HTTP boundary, owner authentication, and optional notification adapter for the private lead ledger."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from email.message import EmailMessage
 import hmac
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
@@ -21,6 +22,9 @@ from lead_ledger import ConflictError, LeadLedger, LeadSubmission, ValidationErr
 
 LOG = logging.getLogger("lead_consent_service")
 MAX_BODY_BYTES = 8192
+MAX_ADMIN_BODY_BYTES = 4096
+ADMIN_SESSION_COOKIE = "__Host-iambandobandz_admin"
+ADMIN_SESSION_VERSION = "v1"
 
 
 class SlidingWindowLimiter:
@@ -104,6 +108,8 @@ class ServiceConfig:
     admin_token: str
     ingest_token: str
     trust_proxy: bool
+    admin_session_secret: bytes = b""
+    admin_session_ttl_seconds: int = 8 * 60 * 60
 
     @classmethod
     def from_env(cls) -> "ServiceConfig":
@@ -121,6 +127,9 @@ class ServiceConfig:
             ).split(",")
             if item.strip()
         )
+        ttl = int(os.getenv("LEAD_ADMIN_SESSION_TTL_SECONDS", str(8 * 60 * 60)))
+        if ttl < 300 or ttl > 7 * 24 * 60 * 60:
+            raise RuntimeError("LEAD_ADMIN_SESSION_TTL_SECONDS must be between 300 and 604800")
         return cls(
             db_path=Path(os.getenv("LEAD_DB_PATH", "state/private/lead_consent.sqlite3")),
             bind_host=os.getenv("LEAD_BIND_HOST", "127.0.0.1"),
@@ -130,6 +139,8 @@ class ServiceConfig:
             admin_token=os.getenv("LEAD_ADMIN_TOKEN", ""),
             ingest_token=os.getenv("LEAD_INGEST_TOKEN", ""),
             trust_proxy=os.getenv("LEAD_TRUST_PROXY", "0") == "1",
+            admin_session_secret=os.getenv("LEAD_ADMIN_SESSION_SECRET", "").encode("utf-8"),
+            admin_session_ttl_seconds=ttl,
         )
 
 
@@ -140,6 +151,7 @@ class LeadHTTPServer(ThreadingHTTPServer):
         self.config = config
         self.ledger = LeadLedger(config.db_path, privacy_hash_key=config.privacy_hash_key)
         self.limiter = SlidingWindowLimiter()
+        self.admin_limiter = SlidingWindowLimiter(limit=8, window_seconds=60)
         self.notifier = Notifier()
         super().__init__(address, LeadHandler)
 
@@ -161,33 +173,149 @@ class LeadHandler(BaseHTTPRequestHandler):
         expected = self.server.config.ingest_token
         return bool(expected and hmac.compare_digest(supplied, expected))
 
-    def _cors(self) -> None:
+    def _admin_origin_allowed(self) -> bool:
+        return self._origin() in self.server.config.allowed_origins
+
+    def _remote_ip(self) -> str:
+        remote_ip = self.client_address[0]
+        if self.server.config.trust_proxy:
+            forwarded = self.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+            if forwarded:
+                remote_ip = forwarded
+        return remote_ip
+
+    def _cors(self, *, admin: bool = False) -> None:
         origin = self._origin()
         if origin in self.server.config.allowed_origins:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Idempotency-Key")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS" if admin else "POST, OPTIONS")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, Authorization" if admin else "Content-Type, X-Idempotency-Key",
+            )
+            if admin:
+                self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Access-Control-Max-Age", "600")
 
-    def _json(self, status: int, payload: Mapping[str, Any]) -> None:
+    def _json(
+        self,
+        status: int,
+        payload: Mapping[str, Any],
+        *,
+        admin: bool = False,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Pragma", "no-cache")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self._cors()
+        self.send_header("Referrer-Policy", "no-referrer")
+        if headers:
+            for key, value in headers.items():
+                self.send_header(key, value)
+        self._cors(admin=admin)
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_json(self, max_bytes: int) -> Mapping[str, Any]:
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValidationError("invalid_content_length") from exc
+        if content_length <= 0 or content_length > max_bytes:
+            raise ValidationError("invalid_body_size")
+        if "application/json" not in self.headers.get("Content-Type", ""):
+            raise ValidationError("json_required")
+        raw = json.loads(self.rfile.read(content_length))
+        if not isinstance(raw, dict):
+            raise ValidationError("JSON body must be an object")
+        return raw
+
+    def _session_signature(self, unsigned: str) -> str:
+        secret = self.server.config.admin_session_secret
+        return hmac.new(secret, unsigned.encode("ascii"), "sha256").hexdigest()
+
+    def _mint_admin_session(self) -> tuple[str, int]:
+        issued_at = int(time.time())
+        expires_at = issued_at + self.server.config.admin_session_ttl_seconds
+        nonce = secrets.token_urlsafe(18)
+        unsigned = f"{ADMIN_SESSION_VERSION}.{issued_at}.{expires_at}.{nonce}"
+        return f"{unsigned}.{self._session_signature(unsigned)}", expires_at
+
+    def _session_cookie_value(self) -> str:
+        raw = self.headers.get("Cookie", "")
+        if not raw:
+            return ""
+        try:
+            parsed = SimpleCookie()
+            parsed.load(raw)
+            morsel = parsed.get(ADMIN_SESSION_COOKIE)
+            return morsel.value if morsel else ""
+        except Exception:
+            return ""
+
+    def _verify_admin_session(self, token: str) -> bool:
+        secret = self.server.config.admin_session_secret
+        if not secret or not token:
+            return False
+        parts = token.split(".")
+        if len(parts) != 5 or parts[0] != ADMIN_SESSION_VERSION:
+            return False
+        version, issued_raw, expires_raw, nonce, supplied_sig = parts
+        try:
+            issued_at = int(issued_raw)
+            expires_at = int(expires_raw)
+        except ValueError:
+            return False
+        now = int(time.time())
+        if issued_at > now + 60 or expires_at <= now or expires_at <= issued_at:
+            return False
+        if expires_at - issued_at > self.server.config.admin_session_ttl_seconds:
+            return False
+        if not nonce or len(nonce) > 128:
+            return False
+        unsigned = f"{version}.{issued_at}.{expires_at}.{nonce}"
+        expected_sig = self._session_signature(unsigned)
+        return hmac.compare_digest(supplied_sig, expected_sig)
+
+    def _authorized_admin(self) -> bool:
+        expected = self.server.config.admin_token
+        auth = self.headers.get("Authorization", "")
+        supplied = auth.removeprefix("Bearer ") if auth.startswith("Bearer ") else ""
+        if expected and supplied and hmac.compare_digest(supplied, expected):
+            return True
+        if not self._admin_origin_allowed():
+            return False
+        return self._verify_admin_session(self._session_cookie_value())
+
+    def _set_admin_cookie_header(self, token: str, max_age: int) -> str:
+        return (
+            f"{ADMIN_SESSION_COOKIE}={token}; Path=/; Max-Age={max_age}; "
+            "Secure; HttpOnly; SameSite=Strict"
+        )
+
     def do_OPTIONS(self) -> None:
-        if self.path != "/api/v1/leads" or self._origin() not in self.server.config.allowed_origins:
-            self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"})
+        if self.path == "/api/v1/leads":
+            if not self._admin_origin_allowed():
+                self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"})
+                return
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self._cors(admin=False)
+            self.end_headers()
             return
-        self.send_response(HTTPStatus.NO_CONTENT)
-        self._cors()
-        self.end_headers()
+        if self.path in {"/api/v1/admin/login", "/api/v1/admin/logout", "/api/v1/admin/session", "/api/v1/admin/stats"}:
+            if not self._admin_origin_allowed():
+                self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"}, admin=True)
+                return
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self._cors(admin=True)
+            self.end_headers()
+            return
+        self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_GET(self) -> None:
         if self.path == "/healthz":
@@ -197,51 +325,50 @@ class LeadHandler(BaseHTTPRequestHandler):
                 {"ok": ok, "audit_chain_broken_at": broken},
             )
             return
+        if self.path == "/api/v1/admin/session":
+            if not self._authorized_admin():
+                self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"}, admin=True)
+                return
+            self._json(HTTPStatus.OK, {"ok": True, "authenticated": True}, admin=True)
+            return
         if self.path == "/api/v1/admin/stats":
-            expected = self.server.config.admin_token
-            auth = self.headers.get("Authorization", "")
-            if not expected:
-                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "admin_disabled"})
+            if not self._authorized_admin():
+                error = "admin_disabled" if not self.server.config.admin_token else "unauthorized"
+                status = HTTPStatus.SERVICE_UNAVAILABLE if error == "admin_disabled" else HTTPStatus.UNAUTHORIZED
+                self._json(status, {"error": error}, admin=bool(self._origin()))
                 return
-            supplied = auth.removeprefix("Bearer ") if auth.startswith("Bearer ") else ""
-            if not supplied or not hmac.compare_digest(supplied, expected):
-                self._json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-                return
-            self._json(HTTPStatus.OK, self.server.ledger.stats())
+            self._json(HTTPStatus.OK, self.server.ledger.stats(), admin=bool(self._origin()))
             return
         self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/v1/admin/login":
+            self._handle_admin_login()
+            return
+        if self.path == "/api/v1/admin/logout":
+            if not self._admin_origin_allowed():
+                self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"}, admin=True)
+                return
+            self._json(
+                HTTPStatus.OK,
+                {"ok": True},
+                admin=True,
+                headers={"Set-Cookie": self._set_admin_cookie_header("", 0)},
+            )
+            return
         if self.path != "/api/v1/leads":
             self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
         if not self._origin_allowed():
             self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"})
             return
-        remote_ip = self.client_address[0]
-        if self.server.config.trust_proxy:
-            forwarded = self.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
-            if forwarded:
-                remote_ip = forwarded
+        remote_ip = self._remote_ip()
         rate_key = self.server.ledger.privacy_hash(remote_ip or "unknown")
         if not self.server.limiter.allow(rate_key):
             self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate_limited"})
             return
         try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_content_length"})
-            return
-        if content_length <= 0 or content_length > MAX_BODY_BYTES:
-            self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "invalid_body_size"})
-            return
-        if "application/json" not in self.headers.get("Content-Type", ""):
-            self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "json_required"})
-            return
-        try:
-            raw = json.loads(self.rfile.read(content_length))
-            if not isinstance(raw, dict):
-                raise ValidationError("JSON body must be an object")
+            raw = dict(self._read_json(MAX_BODY_BYTES))
             if "idempotency_key" not in raw:
                 raw["idempotency_key"] = self.headers.get("X-Idempotency-Key", "")
             submission = LeadSubmission.from_mapping(raw)
@@ -264,7 +391,13 @@ class LeadHandler(BaseHTTPRequestHandler):
                 },
             )
         except ValidationError as exc:
-            self._json(HTTPStatus.BAD_REQUEST, {"error": "validation_error", "message": str(exc)})
+            message = str(exc)
+            if message == "json_required":
+                self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": message})
+            elif message in {"invalid_body_size", "invalid_content_length"}:
+                self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE if message == "invalid_body_size" else HTTPStatus.BAD_REQUEST, {"error": message})
+            else:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "validation_error", "message": message})
         except ConflictError as exc:
             self._json(HTTPStatus.CONFLICT, {"error": "contact_conflict", "message": str(exc)})
         except json.JSONDecodeError:
@@ -272,3 +405,35 @@ class LeadHandler(BaseHTTPRequestHandler):
         except Exception:
             LOG.exception("ingest failed")
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal_error"})
+
+    def _handle_admin_login(self) -> None:
+        if not self._admin_origin_allowed():
+            self._json(HTTPStatus.FORBIDDEN, {"error": "origin_not_allowed"}, admin=True)
+            return
+        config = self.server.config
+        if not config.admin_token or not config.admin_session_secret:
+            self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "admin_session_disabled"}, admin=True)
+            return
+        rate_key = "admin:" + self.server.ledger.privacy_hash(self._remote_ip() or "unknown")
+        if not self.server.admin_limiter.allow(rate_key):
+            self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate_limited"}, admin=True)
+            return
+        try:
+            raw = self._read_json(MAX_ADMIN_BODY_BYTES)
+            supplied = str(raw.get("token", ""))
+        except ValidationError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)}, admin=True)
+            return
+        except json.JSONDecodeError:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json"}, admin=True)
+            return
+        if not supplied or not hmac.compare_digest(supplied, config.admin_token):
+            self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"}, admin=True)
+            return
+        session_token, _ = self._mint_admin_session()
+        self._json(
+            HTTPStatus.OK,
+            {"ok": True, "expires_in": config.admin_session_ttl_seconds},
+            admin=True,
+            headers={"Set-Cookie": self._set_admin_cookie_header(session_token, config.admin_session_ttl_seconds)},
+        )
