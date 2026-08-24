@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: MASSIVEMAGNETICS/truth-compiler-ai
-          ref: f06ff18698176d1ae6c83a2fd78dc8a75ec246ea
+          ref: f08593e210b675a965215fc9cd4c77548511db05
           path: truth-compiler-ai
 
       - name: Set up Python ${{ matrix.python-version }}
