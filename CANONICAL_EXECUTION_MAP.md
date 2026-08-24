@@ -69,6 +69,17 @@ Observation
 - Dedicated Operator CI and the repaired component-capability matrix both passed on the rebased exact head.
 - Sovereignty: no hosted cognition, no cloud inference fallback, and goal-only work fails closed without an owner-controlled provenance-verifiable local cognition adapter.
 
+### Shared Completion Fabric v1
+
+- Repository: `MASSIVEMAGNETICS/starpower-core`
+- Merge commit: `3d8999e45a601392d45a6e8703932a5c1522f7dd`
+- Exact pre-merge head: `b46192baea6b6798347932ae28f13770bd0325fa`
+- Python 3.11 lint/tests: PASS.
+- Python 3.12 lint/tests: PASS.
+- Public MASSIVEMAGNETICS owner-repository portfolio scan, leverage summary, and artifact publication: PASS.
+- Scope boundary: current account discovery enumerates public owner repositories; absence of a private/non-visible repository is not evidence that it does not exist.
+- SCF remains advisory portfolio intelligence. Its `--apply-safe` mode may create only allowlisted support files and grants no merge/deploy/secret/fund authority.
+
 ### VictorOS Android v0.1
 
 - Repository: `MASSIVEMAGNETICS/victorOS`
@@ -82,19 +93,6 @@ Observation
 - Repository: `MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io`
 - Heartbeat canonicalization proof merge: `1557bce659153e70f18fbf370106ee27cceee245`
 - `/proof/` may expose bounded verified status only when linked evidence supports it.
-
-## SCF status
-
-SCF-1 is the portfolio-intelligence layer, not an execution authority.
-
-Current candidate: `MASSIVEMAGNETICS/starpower-core` PR #5, head `b46192baea6b6798347932ae28f13770bd0325fa`.
-
-- Python 3.11 lint/tests: PASS
-- Python 3.12 lint/tests: PASS
-- Portfolio owner-discovery repair: under exact-head validation at the time this document was created
-- Merge state: **PENDING EVIDENCE**
-
-If the exact-head portfolio scan fails, SCF remains unmerged until the failure is repaired. A red observation may not be rewritten as a green claim.
 
 ## Explicitly blocked / deferred gates
 
@@ -142,10 +140,10 @@ A worker claim is not a verified outcome. An unknown observation is not a negati
 
 ## Next terminal transitions
 
-1. Finish SCF exact-head portfolio proof and merge only if green.
-2. Run the VictorOS physical-device continuity test before adding mobile capabilities.
-3. Satisfy the admin HTTPS deployment gate before merging the browser session frontend/backend chain.
-4. Complete SunoVault operational release gates before beta publication.
-5. Run Omni's real local audio evidence loop before freezing proxy weights or expanding generator abstraction.
+1. Run the VictorOS physical-device continuity test before adding mobile capabilities.
+2. Satisfy the admin HTTPS deployment gate before merging the browser session frontend/backend chain.
+3. Complete SunoVault operational release gates before beta publication.
+4. Run Omni's real local audio evidence loop before freezing proxy weights or expanding generator abstraction.
+5. Use SCF rankings as advisory input to RCP/Operator work selection; keep consequential authorization outside SCF.
 
 The architecture phase is closed unless evidence reopens it. The operating phase is **integration -> falsification -> shipping -> monetization**.
