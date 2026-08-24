@@ -1,0 +1,110 @@
+name: Canonical Execution Ledger
+
+on:
+  pull_request:
+    paths:
+      - "chronos/canonical_execution.jsonl"
+      - "chronos/README.md"
+      - "trace0_chronos.py"
+      - ".github/workflows/canonical-execution-ledger.yml"
+  push:
+    branches: [main]
+    paths:
+      - "chronos/canonical_execution.jsonl"
+      - "chronos/README.md"
+      - "trace0_chronos.py"
+      - ".github/workflows/canonical-execution-ledger.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-append-only-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify Chronos replay and hash chain
+        run: |
+          python - <<'PY'
+          from trace0_chronos import ChronosLedger
+
+          ledger = ChronosLedger("chronos/canonical_execution.jsonl")
+          if not ledger.verify_chain():
+              raise SystemExit("canonical execution Chronos chain verification failed")
+          if not ledger.events():
+              raise SystemExit("canonical execution ledger must not be empty")
+          print(f"verified {len(ledger.events())} canonical execution event(s)")
+          print(f"head_chain_hash={ledger.last_chain_hash}")
+          PY
+
+      - name: Reject mutation of prior ledger lines
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          ledger_path = "chronos/canonical_execution.jsonl"
+          current_lines = Path(ledger_path).read_text(encoding="utf-8").splitlines()
+          if not current_lines:
+              raise SystemExit("canonical execution ledger must not be empty")
+
+          event_name = os.environ.get("EVENT_NAME", "")
+          base_ref = os.environ.get("BASE_REF", "")
+          before_sha = os.environ.get("BEFORE_SHA", "")
+
+          prior_spec = None
+          if event_name == "pull_request" and base_ref:
+              prior_spec = f"origin/{base_ref}:{ledger_path}"
+          elif event_name == "push" and before_sha and before_sha != "0" * 40:
+              prior_spec = f"{before_sha}:{ledger_path}"
+
+          prior_lines = None
+          if prior_spec:
+              result = subprocess.run(
+                  ["git", "show", prior_spec],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+              if result.returncode == 0:
+                  prior_lines = result.stdout.splitlines()
+
+          if prior_lines is None:
+              if len(current_lines) != 1:
+                  raise SystemExit("ledger genesis must begin with exactly one record")
+              genesis = json.loads(current_lines[0])
+              event = genesis["event"]
+              receipt = genesis["receipt"]
+              if event["sequence"] != 1 or receipt["sequence"] != 1:
+                  raise SystemExit("ledger genesis must use sequence 1")
+              if event["parent_event_hash"] is not None:
+                  raise SystemExit("ledger genesis parent_event_hash must be null")
+              if receipt["previous_chain_hash"] is not None:
+                  raise SystemExit("ledger genesis previous_chain_hash must be null")
+              print("validated append-only genesis")
+          else:
+              if len(current_lines) < len(prior_lines):
+                  raise SystemExit("append-only violation: canonical execution ledger was truncated")
+              for index, prior_line in enumerate(prior_lines):
+                  if current_lines[index] != prior_line:
+                      raise SystemExit(
+                          f"append-only violation: prior ledger line {index + 1} was modified"
+                      )
+              print(
+                  f"append-only prefix preserved; prior={len(prior_lines)} current={len(current_lines)}"
+              )
+          PY
