@@ -1,0 +1,60 @@
+name: Victor Canonical Heartbeat v0
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  heartbeat-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout Victor repository
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Truth Compiler
+        uses: actions/checkout@v4
+        with:
+          repository: MASSIVEMAGNETICS/truth-compiler-ai
+          ref: f08593e210b675a965215fc9cd4c77548511db05
+          path: truth-compiler-ai
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile heartbeat and launch-gate integration
+        run: python -m py_compile victor_heartbeat_v0.py victor_launch_gate_v0.py test_victor_heartbeat_v0.py test_victor_launch_gate_v0.py
+
+      - name: Verify pinned Truth Compiler contract
+        run: |
+          python truth-compiler-ai/truth_compiler_contract.py <<'JSON'
+          {"schema_version":"truth.compiler.contract.v1","claim_id":"ci:preflight","claim":{},"evidence":[{"evidence_id":"ci-e1","status":"SUPPORTED","source":"ci","independence_group":"ci","provenance":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"facts":{"owner_authorized":true}}],"policy":{"authority_allowed":true,"min_independent_support":1,"max_contradictions":0,"required_fact_keys":["owner_authorized"]}}
+          JSON
+
+      - name: Run heartbeat + strict launch gate with annotated failure tail
+        shell: bash
+        env:
+          VICTOR_TRUTH_COMPILER_PATH: ${{ github.workspace }}/truth-compiler-ai/truth_compiler_contract.py
+        run: |
+          set +e
+          python -m unittest -v test_victor_heartbeat_v0.py test_victor_launch_gate_v0.py 2>&1 | tee heartbeat-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            tail_text=$(tail -n 50 heartbeat-test.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error file=test_victor_launch_gate_v0.py,title=Victor launch gate failed::${tail_text}"
+            exit "$status"
+          fi
