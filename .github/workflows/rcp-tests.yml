@@ -1,0 +1,35 @@
+name: RCP tests
+
+on:
+  pull_request:
+    paths:
+      - "rcp/**"
+      - "rcp_cli.py"
+      - "test_rcp.py"
+      - "RCP.md"
+      - "rcp.example.json"
+      - ".github/workflows/rcp-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "rcp/**"
+      - "rcp_cli.py"
+      - "test_rcp.py"
+      - ".github/workflows/rcp-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile
+        run: python -m compileall -q rcp rcp_cli.py test_rcp.py
+      - name: Unit tests
+        run: python -m unittest -v test_rcp.py
