@@ -30,8 +30,10 @@ jobs:
         python-version: ["3.11", "3.12"]
 
     steps:
-      - name: Checkout exact head
+      - name: Checkout exact tested commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
