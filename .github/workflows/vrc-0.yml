@@ -5,6 +5,7 @@ on:
     paths:
       - "victor_regenerative_continuity.py"
       - "test_victor_regenerative_continuity.py"
+      - "test_vrc_experience_transition_reconstruction.py"
       - "VICTOR_REGENERATIVE_CONTINUITY.md"
       - ".github/workflows/vrc-0.yml"
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - "victor_regenerative_continuity.py"
       - "test_victor_regenerative_continuity.py"
+      - "test_vrc_experience_transition_reconstruction.py"
       - ".github/workflows/vrc-0.yml"
 
 permissions:
@@ -41,7 +43,11 @@ jobs:
           python -m compileall -q \
             trace0_chronos.py \
             victor_regenerative_continuity.py \
-            test_victor_regenerative_continuity.py
+            test_victor_regenerative_continuity.py \
+            test_vrc_experience_transition_reconstruction.py
 
       - name: Run destructive VRC tests
-        run: python -m unittest -v test_victor_regenerative_continuity.py
+        run: |
+          python -m unittest -v \
+            test_victor_regenerative_continuity.py \
+            test_vrc_experience_transition_reconstruction.py
