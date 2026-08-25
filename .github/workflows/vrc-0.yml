@@ -1,0 +1,47 @@
+name: VRC-0 Regenerative Continuity
+
+on:
+  pull_request:
+    paths:
+      - "victor_regenerative_continuity.py"
+      - "test_victor_regenerative_continuity.py"
+      - "VICTOR_REGENERATIVE_CONTINUITY.md"
+      - ".github/workflows/vrc-0.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "victor_regenerative_continuity.py"
+      - "test_victor_regenerative_continuity.py"
+      - ".github/workflows/vrc-0.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  destructive-recovery:
+    name: Python ${{ matrix.python-version }} destructive recovery
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile VRC contract and tests
+        run: |
+          python -m compileall -q \
+            trace0_chronos.py \
+            victor_regenerative_continuity.py \
+            test_victor_regenerative_continuity.py
+
+      - name: Run destructive VRC tests
+        run: python -m unittest -v test_victor_regenerative_continuity.py
