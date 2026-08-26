@@ -169,7 +169,7 @@ class RecoveryShard:
     def payload_bytes(self) -> bytes:
         try:
             raw = base64.b64decode(self.payload_b64.encode("ascii"), validate=True)
-        except Exception as exc:  # binascii.Error is implementation detail
+        except Exception as exc:
             raise IntegrityError(f"invalid base64 in recovery shard {self.index}") from exc
         if len(raw) != self.shard_size:
             raise IntegrityError(f"recovery shard {self.index} has unexpected length")
@@ -260,7 +260,10 @@ class VictorRegenerativeContinuity:
         self._transition(ResilienceState.RECONSTRUCTING, "recovery initiated")
         try:
             capsule, used, reconstructed = decode_capsule_shards(shards)
-            self._transition(ResilienceState.VERIFYING, "capsule reconstructed; verifying identity and Chronos")
+            self._transition(
+                ResilienceState.VERIFYING,
+                "capsule reconstructed; verifying identity and Chronos",
+            )
             ledger = verify_capsule(capsule, expected_genome=self.genome)
         except Exception:
             self._transition(ResilienceState.HALTED, "recovery verification failed")
@@ -346,12 +349,10 @@ def _xor_bytes(left: bytes, right: bytes) -> bytes:
     return bytes(a ^ b for a, b in zip(left, right))
 
 
-def encode_capsule_shards(capsule: RecoveryCapsule) -> Tuple[RecoveryShard, RecoveryShard, RecoveryShard]:
-    """Encode a capsule as two data shards plus one XOR parity shard.
-
-    Any two valid shards reconstruct the complete capsule. This tolerates one
-    missing or detectably corrupted fragment.
-    """
+def encode_capsule_shards(
+    capsule: RecoveryCapsule,
+) -> Tuple[RecoveryShard, RecoveryShard, RecoveryShard]:
+    """Encode a capsule as two data shards plus one XOR parity shard."""
 
     payload = canonical_json(capsule.to_dict()).encode("utf-8")
     original_size = len(payload)
@@ -383,36 +384,70 @@ def encode_capsule_shards(capsule: RecoveryCapsule) -> Tuple[RecoveryShard, Reco
     return tuple(shards)  # type: ignore[return-value]
 
 
-def _valid_shards(shards: Iterable[RecoveryShard]) -> Dict[int, Tuple[RecoveryShard, bytes]]:
-    valid: Dict[int, Tuple[RecoveryShard, bytes]] = {}
-    metadata: Optional[Tuple[str, int, int, str]] = None
+def _valid_shard_groups(
+    shards: Iterable[RecoveryShard],
+) -> Dict[Tuple[str, int, int, str], Dict[int, Tuple[RecoveryShard, bytes]]]:
+    """Authenticate shards independently, then group them by recovery-set identity.
+
+    Input ordering is intentionally irrelevant. Duplicate indices within a set
+    are accepted only when their authenticated payload bytes are identical;
+    conflicting duplicates make that set unusable rather than allowing the last
+    supplied fragment to win.
+    """
+
+    groups: Dict[
+        Tuple[str, int, int, str],
+        Dict[int, Tuple[RecoveryShard, bytes]],
+    ] = {}
+    conflicted: set[Tuple[str, int, int, str]] = set()
+
     for shard in shards:
         if shard.index not in {0, 1, 2}:
             continue
         if shard.schema_version != "victor.vrc.shard.v1":
             continue
-        current_meta = (shard.set_id, shard.original_size, shard.shard_size, shard.schema_version)
-        if metadata is None:
-            metadata = current_meta
-        elif current_meta != metadata:
-            continue
         try:
             raw = shard.payload_bytes()
         except IntegrityError:
             continue
-        valid[shard.index] = (shard, raw)
-    return valid
+
+        metadata = (
+            shard.set_id,
+            shard.original_size,
+            shard.shard_size,
+            shard.schema_version,
+        )
+        if metadata in conflicted:
+            continue
+        group = groups.setdefault(metadata, {})
+        existing = group.get(shard.index)
+        if existing is not None and existing[1] != raw:
+            groups.pop(metadata, None)
+            conflicted.add(metadata)
+            continue
+        group[shard.index] = (shard, raw)
+
+    return groups
+
+
+def _is_reconstructible(valid: Mapping[int, Tuple[RecoveryShard, bytes]]) -> bool:
+    indices = set(valid)
+    return {0, 1}.issubset(indices) or {0, 2}.issubset(indices) or {1, 2}.issubset(indices)
 
 
 def decode_capsule_shards(
     shards: Sequence[RecoveryShard],
 ) -> Tuple[RecoveryCapsule, Tuple[int, ...], Optional[int]]:
-    """Reconstruct and authenticate a capsule from any two valid VRC shards."""
+    """Reconstruct and authenticate exactly one unambiguous VRC recovery set."""
 
-    valid = _valid_shards(shards)
-    if len(valid) < 2:
+    groups = _valid_shard_groups(shards)
+    candidates = [group for group in groups.values() if _is_reconstructible(group)]
+    if not candidates:
         raise RecoveryQuorumError("VRC requires any two valid shards from the same recovery set")
+    if len(candidates) != 1:
+        raise RecoveryQuorumError("multiple VRC recovery sets form valid quorums; recovery is ambiguous")
 
+    valid = candidates[0]
     sample = next(iter(valid.values()))[0]
     reconstructed_index: Optional[int] = None
 
@@ -446,13 +481,11 @@ def decode_capsule_shards(
     return capsule, used, reconstructed_index
 
 
-def write_recovery_set_atomic(directory: str | os.PathLike[str], shards: Sequence[RecoveryShard]) -> Tuple[Path, ...]:
-    """Persist shards atomically so interruption never leaves trusted partial files.
-
-    This writes all provided shard files into one directory. Distribution across
-    independent devices/media is a deployment responsibility; VRC does not
-    pretend three files on one disk are three independent failure domains.
-    """
+def write_recovery_set_atomic(
+    directory: str | os.PathLike[str],
+    shards: Sequence[RecoveryShard],
+) -> Tuple[Path, ...]:
+    """Persist shards atomically so interruption never leaves trusted partial files."""
 
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
