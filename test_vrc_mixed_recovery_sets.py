@@ -1,7 +1,7 @@
 """Adversarial recovery-set selection tests for VRC-0.
 
-A foreign or stale shard must not be able to poison discovery of an otherwise
-valid two-shard quorum merely by appearing first in the supplied sequence.
+Foreign or stale shards must not poison discovery of an otherwise valid quorum,
+and multiple independently valid quorums must fail closed as ambiguous.
 """
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import unittest
 
 from trace0_chronos import ChronosLedger, Trace0Observer
 from victor_regenerative_continuity import (
+    RecoveryQuorumError,
     ResilienceState,
     VictorGenome,
     VictorRegenerativeContinuity,
@@ -60,6 +61,22 @@ class VRCMixedRecoverySetTests(unittest.TestCase):
         self.assertEqual(result.capsule.capsule_id, expected_capsule.capsule_id)
         self.assertEqual(result.used_shard_indices, (0, 2))
         self.assertEqual(result.reconstructed_shard_index, 1)
+
+    def test_two_valid_recovery_sets_fail_closed_as_ambiguous(self):
+        genome, _capsule_a, shards_a = self._freeze("set-a")
+        _genome_b, _capsule_b, shards_b = self._freeze("set-b")
+
+        replacement = VictorRegenerativeContinuity(
+            genome,
+            state=ResilienceState.CRYPTOBIOSIS,
+        )
+        with self.assertRaisesRegex(RecoveryQuorumError, "ambiguous"):
+            replacement.recover(
+                (shards_a[0], shards_b[2], shards_b[0], shards_a[2])
+            )
+
+        self.assertEqual(replacement.state, ResilienceState.HALTED)
+        self.assertFalse(replacement.external_effects_allowed())
 
 
 if __name__ == "__main__":
