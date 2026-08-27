@@ -1,0 +1,43 @@
+{
+  "schema_version": "autopoiesis-policy/1.0",
+  "revision": "2026.08.27.1",
+  "authority_model": "single-writer-multi-reader",
+  "pulse_minutes": 60,
+  "observer": {
+    "strict_attempts": 3,
+    "backoff_seconds": [1, 2],
+    "unknown_state": "FAIL_CLOSED",
+    "external_deadman_required": true
+  },
+  "repair": {
+    "max_attempts_per_incident": 1,
+    "allowed_classes": [
+      "deterministic_derived_state_drift",
+      "public_deployment_projection_drift"
+    ],
+    "forbidden_classes": [
+      "authority_change",
+      "credential_or_secret_change",
+      "security_policy_change",
+      "identity_change",
+      "unknown_or_ambiguous_state"
+    ]
+  },
+  "circuit_breaker": {
+    "fail_closed_after_retry_exhaustion": true,
+    "fail_closed_after_repair_failure": true,
+    "never_loop_repairs": true,
+    "never_expand_authority": true
+  },
+  "receipts": {
+    "persist_semantic_state_transitions": true,
+    "append_only_execution_history": true,
+    "no_timestamp_only_commits": true
+  },
+  "promotion": {
+    "require_source_validation": true,
+    "require_derived_validation": true,
+    "require_deployed_verification_where_applicable": true,
+    "authority_changes_require_human_review": true
+  }
+}
