@@ -1,0 +1,67 @@
+name: Empire Synchronization Spine
+
+on:
+  pull_request:
+    paths:
+      - "empire_sync/**"
+      - "CANONICAL_EXECUTION_MAP.md"
+      - "chronos/canonical_execution.jsonl"
+      - ".github/workflows/empire-sync.yml"
+  push:
+    branches: [main]
+    paths:
+      - "empire_sync/**"
+      - "CANONICAL_EXECUTION_MAP.md"
+      - "chronos/canonical_execution.jsonl"
+      - ".github/workflows/empire-sync.yml"
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: empire-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Compile sync verifier
+        run: python -m py_compile empire_sync/check_empire_sync.py
+      - name: Validate local authority graph on pull requests
+        if: github.event_name == 'pull_request'
+        run: python empire_sync/check_empire_sync.py --local-only
+      - name: Strict cross-repo verification
+        id: strict
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python empire_sync/check_empire_sync.py --write-report empire_sync/status.json
+      - name: Commit semantic status transition
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if git diff --quiet -- empire_sync/status.json; then
+            echo "No semantic synchronization state change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add empire_sync/status.json
+          git commit -m "chore(sync): update empire synchronization status"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Fail closed on cross-repo drift
+        if: github.event_name != 'pull_request' && steps.strict.outcome == 'failure'
+        run: |
+          echo "Empire synchronization drift detected. See empire_sync/status.json."
+          exit 1
