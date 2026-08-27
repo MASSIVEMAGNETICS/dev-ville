@@ -1,0 +1,101 @@
+{
+  "schema_version": "empire-sync/1.0",
+  "revision": "2026.08.27.1",
+  "authority_model": "single-writer-multi-reader",
+  "domains": {
+    "execution_history": {
+      "authority": "MASSIVEMAGNETICS/dev-ville:chronos/canonical_execution.jsonl",
+      "mode": "append_only",
+      "derived": [
+        "CANONICAL_EXECUTION_MAP.md",
+        "public Proof Ledger"
+      ]
+    },
+    "storefront_artwork": {
+      "authority": "MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io:store/sync-contract.json",
+      "mode": "declarative",
+      "derived": [
+        "store/assets/assets.json",
+        "store/index.html",
+        "deployed storefront"
+      ]
+    },
+    "commerce": {
+      "authority": "MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io:store/commerce.json",
+      "mode": "declarative",
+      "derived": [
+        "asset/product checkout_state",
+        "store.js checkout hydration",
+        "deployed checkout links"
+      ]
+    },
+    "public_proof": {
+      "authority": "MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io:proof/ledger.json",
+      "mode": "bounded_projection",
+      "derived_from": [
+        "canonical immutable evidence anchors"
+      ]
+    },
+    "frontier_radar": {
+      "authority": "MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io:frontier-radar/data/status.json",
+      "mode": "derived_observation"
+    }
+  },
+  "canonical_anchors": [
+    {
+      "id": "truth_compiler_v1",
+      "repository": "MASSIVEMAGNETICS/truth-compiler-ai",
+      "sha": "f08593e210b675a965215fc9cd4c77548511db05",
+      "must_appear_in_public_proof": true
+    },
+    {
+      "id": "victor_heartbeat_v1",
+      "repository": "MASSIVEMAGNETICS/dev-ville",
+      "sha": "4e0f04126673c2539c8712d6fa6b08e2485fa316",
+      "must_appear_in_public_proof": true
+    },
+    {
+      "id": "rcp_v1",
+      "repository": "MASSIVEMAGNETICS/dev-ville",
+      "sha": "f10c24fe102814d4163c3a8242a36dfc923a6ccd",
+      "must_appear_in_public_proof": true
+    },
+    {
+      "id": "victor_operator_v0_1",
+      "repository": "MASSIVEMAGNETICS/VICTOR-SSI",
+      "sha": "eadc4fe5ac86c86c321fbc9d541eb5d5bc52e9bb",
+      "must_appear_in_public_proof": true
+    },
+    {
+      "id": "scf_1",
+      "repository": "MASSIVEMAGNETICS/starpower-core",
+      "sha": "3d8999e45a601392d45a6e8703932a5c1522f7dd",
+      "must_appear_in_public_proof": true
+    },
+    {
+      "id": "victoros_android_v0_1",
+      "repository": "MASSIVEMAGNETICS/victorOS",
+      "sha": "3b5194a856fbc811e067435b02919b473bf637be",
+      "must_appear_in_public_proof": true
+    }
+  ],
+  "remote_surface": {
+    "repository": "MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io",
+    "branch": "main",
+    "required_paths": [
+      "store/sync-contract.json",
+      "store/assets/assets.json",
+      "store/commerce.json",
+      "store/index.html",
+      "proof/ledger.json",
+      "frontier-radar/data/status.json"
+    ]
+  },
+  "laws": [
+    "No derived artifact may override its authority source.",
+    "Every promotion gate validates source, derived repository state, built/deployed state, and public verification where applicable.",
+    "Semantic drift is a failing state, not a warning.",
+    "Automatic repair is limited to deterministic derived state. Authority changes remain PR/human governed.",
+    "Unknown remote state fails closed in strict mode."
+  ]
+}
