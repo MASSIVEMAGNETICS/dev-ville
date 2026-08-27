@@ -38,7 +38,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile synchronization programs
-        run: python -m py_compile empire_sync/check_empire_sync.py empire_sync/run_strict_with_retries.py
+        run: python -m py_compile empire_sync/check_empire_sync.py empire_sync/run_strict_with_retries.py empire_sync/validate_autopoiesis.py
+      - name: Enforce autopoiesis safety policy
+        run: python empire_sync/validate_autopoiesis.py
       - name: Validate local authority graph on pull requests
         if: github.event_name == 'pull_request'
         run: python empire_sync/check_empire_sync.py --local-only
