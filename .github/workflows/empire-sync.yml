@@ -51,7 +51,7 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          if git diff --quiet -- empire_sync/status.json; then
+          if [ -z "$(git status --porcelain -- empire_sync/status.json)" ]; then
             echo "No semantic synchronization state change."
             exit 0
           fi
