@@ -15,7 +15,7 @@ on:
       - "chronos/canonical_execution.jsonl"
       - ".github/workflows/empire-sync.yml"
   schedule:
-    - cron: "41 */6 * * *"
+    - cron: "41 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,9 @@ concurrency:
 
 jobs:
   verify:
+    if: ${{ github.event_name != 'push' || github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
