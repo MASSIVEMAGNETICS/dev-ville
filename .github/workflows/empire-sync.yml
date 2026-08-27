@@ -37,18 +37,18 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Compile sync verifier
-        run: python -m py_compile empire_sync/check_empire_sync.py
+      - name: Compile synchronization programs
+        run: python -m py_compile empire_sync/check_empire_sync.py empire_sync/run_strict_with_retries.py
       - name: Validate local authority graph on pull requests
         if: github.event_name == 'pull_request'
         run: python empire_sync/check_empire_sync.py --local-only
-      - name: Strict cross-repo verification
+      - name: Strict cross-repo verification with bounded retries
         id: strict
         if: github.event_name != 'pull_request'
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python empire_sync/check_empire_sync.py --write-report empire_sync/status.json
+        run: python empire_sync/run_strict_with_retries.py --attempts 3 --write-report empire_sync/status.json
       - name: Commit semantic status transition
         if: github.event_name != 'pull_request'
         shell: bash
@@ -65,5 +65,5 @@ jobs:
       - name: Fail closed on cross-repo drift
         if: github.event_name != 'pull_request' && steps.strict.outcome == 'failure'
         run: |
-          echo "Empire synchronization drift detected. See empire_sync/status.json."
+          echo "Empire synchronization drift detected after retry budget exhaustion. See empire_sync/status.json."
           exit 1
