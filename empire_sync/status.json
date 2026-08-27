@@ -1,0 +1,44 @@
+{
+  "checks": {
+    "chronos_append_chain": {
+      "detail": "2 contiguous append-only receipts; head=8e652c665ac4219ab9f81dafaa5418be6ab0c71e15aefe8f57046125631c3e0d",
+      "ok": true
+    },
+    "execution_map_anchors": {
+      "detail": "all canonical anchors present",
+      "ok": true
+    },
+    "frontier_radar_health": {
+      "detail": "healthy=True sources=3 errors=0",
+      "ok": true
+    },
+    "immutable_anchor_existence": {
+      "detail": "all immutable anchors resolve",
+      "ok": true
+    },
+    "manifest_schema": {
+      "detail": "empire-sync/1.0",
+      "ok": true
+    },
+    "public_proof_projection": {
+      "detail": "all required canonical anchors are publicly projected",
+      "ok": true
+    },
+    "remote_surface_parse": {
+      "detail": "remote JSON/HTML parsed",
+      "ok": true
+    },
+    "remote_surface_reachable": {
+      "detail": "6 required surfaces readable",
+      "ok": true
+    },
+    "storefront_closed_loop": {
+      "detail": "contract -> registry -> commerce -> HTML agree",
+      "ok": true
+    }
+  },
+  "manifest_revision": "2026.08.27.1",
+  "mode": "strict",
+  "overall": "PASS",
+  "schema_version": "empire-sync-status/1.0"
+}
