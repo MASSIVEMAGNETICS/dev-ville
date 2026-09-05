@@ -9,8 +9,8 @@
       "ok": true
     },
     "frontier_radar_health": {
-      "detail": "healthy=True sources=2 errors=9",
-      "ok": false
+      "detail": "healthy=True sources=3 errors=0",
+      "ok": true
     },
     "immutable_anchor_existence": {
       "detail": "all immutable anchors resolve",
@@ -39,6 +39,6 @@
   },
   "manifest_revision": "2026.08.27.1",
   "mode": "strict",
-  "overall": "FAIL",
+  "overall": "PASS",
   "schema_version": "empire-sync-status/1.0"
 }
