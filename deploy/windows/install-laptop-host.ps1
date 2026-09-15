@@ -1,6 +1,7 @@
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
-    [switch]$RegenerateSecrets
+    [switch]$RegenerateSecrets,
+    [switch]$TakeOverWebPorts
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +11,37 @@ function Assert-Administrator {
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw "Run this PowerShell window as Administrator."
+    }
+}
+
+function Prepare-WebPorts {
+    $listeners = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in 80,443 }
+
+    if (-not $listeners) { return }
+
+    $port80 = $listeners | Where-Object { $_.LocalPort -eq 80 }
+    $w3svc = Get-Service W3SVC -ErrorAction SilentlyContinue
+
+    if ($port80 -and $w3svc -and $w3svc.Status -eq "Running") {
+        if (-not $TakeOverWebPorts) {
+            throw "Port 80 is occupied by IIS/W3SVC. Re-run with -TakeOverWebPorts to stop and disable W3SVC for this dedicated Caddy host."
+        }
+
+        Write-Host "Stopping IIS/W3SVC so Caddy can own TCP 80/443..."
+        Stop-Service W3SVC -Force
+        Set-Service W3SVC -StartupType Disabled
+        Start-Sleep -Seconds 1
+    }
+
+    $remaining = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in 80,443 }
+
+    if ($remaining) {
+        $summary = ($remaining | ForEach-Object {
+            "port=$($_.LocalPort) pid=$($_.OwningProcess) addr=$($_.LocalAddress)"
+        }) -join "; "
+        throw "Caddy web ports are still occupied after preflight: $summary"
     }
 }
 
@@ -122,6 +154,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "lead_consent_service.py")
 
 $pythonExe = Resolve-PythonExecutable
 $caddy = Ensure-Caddy
+Prepare-WebPorts
 
 $stateRoot = Join-Path $env:ProgramData "IAMBANDOBANDZ\lead-consent"
 $envFile = Join-Path $stateRoot "lead-ledger.env"
@@ -177,7 +210,7 @@ $runner = Join-Path $RepoRoot "deploy\windows\run-lead-consent.ps1"
 $caddyConfig = Join-Path $RepoRoot "deploy\windows\Caddyfile"
 
 $leadAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$runner`" -RepoRoot `"$RepoRoot`" -PythonExe `"$pythonExe`""
-$caddyAction = New-ScheduledTaskAction -Execute $caddy.Source -Argument "run --config `"$caddyConfig`""
+$caddyAction = New-ScheduledTaskAction -Execute $caddy.Source -Argument "run --config `"$caddyConfig`" --adapter caddyfile"
 $startup = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
@@ -217,6 +250,24 @@ if (-not $healthy) {
 Write-Host "Local lead API: HEALTHY"
 
 Start-ScheduledTask -TaskName "IAMBANDOBANDZ Caddy"
+
+$caddyHealthy = $false
+for ($attempt = 1; $attempt -le 10; $attempt++) {
+    Start-Sleep -Seconds 1
+    $ports = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in 80,443 }
+    if (($ports.LocalPort -contains 80) -and ($ports.LocalPort -contains 443)) {
+        $caddyHealthy = $true
+        break
+    }
+}
+
+if (-not $caddyHealthy) {
+    $caddyInfo = Get-ScheduledTaskInfo -TaskName "IAMBANDOBANDZ Caddy" -ErrorAction SilentlyContinue
+    $lastResult = if ($caddyInfo) { $caddyInfo.LastTaskResult } else { "unknown" }
+    throw "Caddy failed local listener verification. Expected TCP 80 and 443; scheduled task LastTaskResult=$lastResult"
+}
+Write-Host "Caddy edge: HEALTHY (TCP 80/443 listening)"
 
 Write-Host ""
 Write-Host "Laptop host installed."
