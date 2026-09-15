@@ -1,0 +1,39 @@
+name: Windows Laptop Deployment Contracts
+
+on:
+  pull_request:
+    paths:
+      - "deploy/windows/**"
+      - ".github/workflows/windows-laptop-deployment.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/windows/**"
+      - ".github/workflows/windows-laptop-deployment.yml"
+
+jobs:
+  powershell-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse Windows deployment PowerShell
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem deploy/windows/*.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              Write-Host "::error file=$($_.FullName)::PowerShell parse errors"
+              $errors | ForEach-Object { Write-Host $_.Message }
+            } else {
+              Write-Host "[PASS] $($_.Name)"
+            }
+          }
+          if ($failed) { exit 1 }
