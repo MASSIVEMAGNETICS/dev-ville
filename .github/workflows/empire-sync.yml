@@ -34,6 +34,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # Scheduled/manual runs may sit behind concurrency and start from a stale
+          # event SHA. Resolve the branch tip at execution time instead.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref_name }}
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -59,11 +62,41 @@ jobs:
             echo "No semantic synchronization state change."
             exit 0
           fi
+
+          # Preserve the freshly computed semantic result across remote refreshes.
+          status_tmp="$(mktemp)"
+          cp empire_sync/status.json "$status_tmp"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add empire_sync/status.json
-          git commit -m "chore(sync): update empire synchronization status"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+          # A different writer can advance main between checkout and push. Re-anchor
+          # to the current remote tip before every attempt, reapply only the generated
+          # status file, and never force-push.
+          for attempt in 1 2 3; do
+            echo "Synchronization status push attempt $attempt/3"
+            git fetch origin "$GITHUB_REF_NAME"
+            git reset --hard "origin/$GITHUB_REF_NAME"
+            cp "$status_tmp" empire_sync/status.json
+
+            if [ -z "$(git status --porcelain -- empire_sync/status.json)" ]; then
+              echo "Remote already contains this semantic synchronization state."
+              exit 0
+            fi
+
+            git add empire_sync/status.json
+            git commit -m "chore(sync): update empire synchronization status"
+
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then
+              echo "Synchronization status committed at $(git rev-parse HEAD)."
+              exit 0
+            fi
+
+            echo "Remote advanced during push; retrying from the new remote tip."
+          done
+
+          echo "Unable to publish synchronization status after 3 non-force retries."
+          exit 1
       - name: Fail closed on cross-repo drift
         if: github.event_name != 'pull_request' && steps.strict.outcome == 'failure'
         run: |
