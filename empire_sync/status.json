@@ -9,7 +9,7 @@
       "ok": true
     },
     "frontier_radar_health": {
-      "detail": "healthy=True sources=2 errors=13",
+      "detail": "healthy=True sources=2 errors=14",
       "ok": false
     },
     "immutable_anchor_existence": {
