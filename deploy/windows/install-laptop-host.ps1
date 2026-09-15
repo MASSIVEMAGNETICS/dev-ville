@@ -20,11 +20,37 @@ function New-Secret([int]$Bytes = 48) {
     return [Convert]::ToBase64String($buffer).TrimEnd("=").Replace("+","-").Replace("/","_")
 }
 
-function Get-PythonCommand {
+function Resolve-PythonExecutable {
+    $resolved = ""
+
     $python = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $python) { $python = Get-Command py -ErrorAction SilentlyContinue }
-    if (-not $python) { throw "Python 3.11+ was not found on PATH." }
-    return $python
+    if ($python) {
+        try {
+            $resolved = (& $python.Source -c "import sys; print(sys.executable)" 2>$null | Select-Object -Last 1).Trim()
+        } catch {}
+    }
+
+    if (-not $resolved) {
+        $py = Get-Command py -ErrorAction SilentlyContinue
+        if ($py) {
+            try {
+                $resolved = (& $py.Source -3 -c "import sys; print(sys.executable)" 2>$null | Select-Object -Last 1).Trim()
+            } catch {}
+        }
+    }
+
+    if (-not $resolved -or -not (Test-Path -LiteralPath $resolved)) {
+        throw "Python 3.11+ was not resolved to a real python.exe path."
+    }
+
+    $versionText = (& $resolved -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>$null | Select-Object -Last 1).Trim()
+    $version = [version]$versionText
+    if ($version -lt [version]"3.11.0") {
+        throw "Python 3.11+ is required; resolved $resolved reports $versionText"
+    }
+
+    Write-Host "Resolved Python: $resolved ($versionText)"
+    return $resolved
 }
 function Ensure-Caddy {
     $existing = Get-Command caddy -ErrorAction SilentlyContinue
@@ -94,7 +120,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "lead_consent_service.py")
     throw "RepoRoot does not look like dev-ville: $RepoRoot"
 }
 
-$python = Get-PythonCommand
+$pythonExe = Resolve-PythonExecutable
 $caddy = Ensure-Caddy
 
 $stateRoot = Join-Path $env:ProgramData "IAMBANDOBANDZ\lead-consent"
@@ -150,7 +176,7 @@ foreach ($port in 80,443) {
 $runner = Join-Path $RepoRoot "deploy\windows\run-lead-consent.ps1"
 $caddyConfig = Join-Path $RepoRoot "deploy\windows\Caddyfile"
 
-$leadAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$runner`" -RepoRoot `"$RepoRoot`""
+$leadAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$runner`" -RepoRoot `"$RepoRoot`" -PythonExe `"$pythonExe`""
 $caddyAction = New-ScheduledTaskAction -Execute $caddy.Source -Argument "run --config `"$caddyConfig`""
 $startup = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
@@ -170,15 +196,25 @@ powercfg /change standby-timeout-ac 0 | Out-Null
 powercfg /change hibernate-timeout-ac 0 | Out-Null
 
 Start-ScheduledTask -TaskName "IAMBANDOBANDZ Lead API"
-Start-Sleep -Seconds 3
 
-try {
-    $health = Invoke-RestMethod -Uri "http://127.0.0.1:8787/healthz" -TimeoutSec 10
-    if (-not $health.ok) { throw "Local health endpoint returned unhealthy state." }
-    Write-Host "Local lead API: HEALTHY"
-} catch {
-    throw "Lead API failed local health verification: $($_.Exception.Message)"
+$healthy = $false
+for ($attempt = 1; $attempt -le 10; $attempt++) {
+    Start-Sleep -Seconds 1
+    try {
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:8787/healthz" -TimeoutSec 3
+        if ($health.ok) {
+            $healthy = $true
+            break
+        }
+    } catch {}
 }
+
+if (-not $healthy) {
+    $taskInfo = Get-ScheduledTaskInfo -TaskName "IAMBANDOBANDZ Lead API" -ErrorAction SilentlyContinue
+    $lastResult = if ($taskInfo) { $taskInfo.LastTaskResult } else { "unknown" }
+    throw "Lead API failed local health verification after 10 attempts. Scheduled task LastTaskResult=$lastResult; PythonExe=$pythonExe"
+}
+Write-Host "Local lead API: HEALTHY"
 
 Start-ScheduledTask -TaskName "IAMBANDOBANDZ Caddy"
 
