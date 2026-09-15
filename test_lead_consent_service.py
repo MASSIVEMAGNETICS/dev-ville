@@ -1,12 +1,14 @@
+import hmac
+import http.client
 import json
 from pathlib import Path
 import sqlite3
 import tempfile
-import unittest
-import http.client
 import threading
+import time
+import unittest
 
-from lead_api import LeadHTTPServer, ServiceConfig
+from lead_api import ADMIN_SESSION_COOKIE, LeadHTTPServer, ServiceConfig
 from lead_ledger import ConflictError, LeadLedger, LeadSubmission, ValidationError
 
 
@@ -105,6 +107,7 @@ class LeadLedgerTests(unittest.TestCase):
 class LeadHTTPTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.session_secret = b"session-secret-for-tests-32bytes!!"
         config = ServiceConfig(
             db_path=Path(self.tmp.name) / "http.sqlite3",
             bind_host="127.0.0.1",
@@ -114,6 +117,8 @@ class LeadHTTPTests(unittest.TestCase):
             admin_token="admin-secret",
             ingest_token="server-secret",
             trust_proxy=False,
+            admin_session_secret=self.session_secret,
+            admin_session_ttl_seconds=3600,
         )
         self.server = LeadHTTPServer(("127.0.0.1", 0), config)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -136,8 +141,10 @@ class LeadHTTPTests(unittest.TestCase):
         conn.request(method, path, body=payload, headers=hdrs)
         response = conn.getresponse()
         data = response.read()
+        response_headers = response.headers
+        status = response.status
         conn.close()
-        return response.status, response.headers, json.loads(data) if data else None
+        return status, response_headers, json.loads(data) if data else None
 
     def valid_payload(self):
         return {
@@ -148,6 +155,24 @@ class LeadHTTPTests(unittest.TestCase):
             "source": "website-pre-redirect",
             "idempotency_key": "http-idempotency-0001",
         }
+
+    def login(self, token="admin-secret", origin="https://iambandobandz.com"):
+        status, headers, body = self.request(
+            "POST",
+            "/api/v1/admin/login",
+            body={"token": token},
+            headers={"Origin": origin},
+        )
+        return status, headers, body
+
+    def cookie_from_headers(self, headers):
+        raw = headers.get("Set-Cookie", "")
+        return raw.split(";", 1)[0]
+
+    def signed_session(self, issued_at, expires_at, nonce="testnonce"):
+        unsigned = f"v1.{issued_at}.{expires_at}.{nonce}"
+        sig = hmac.new(self.session_secret, unsigned.encode("ascii"), "sha256").hexdigest()
+        return f"{unsigned}.{sig}"
 
     def test_browser_ingest_accepts_exact_origin(self):
         status, headers, body = self.request(
@@ -187,6 +212,103 @@ class LeadHTTPTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertTrue(body["audit_chain_valid"])
+
+    def test_admin_login_sets_hardened_cookie_and_session_unlocks_stats(self):
+        status, headers, body = self.login()
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["expires_in"], 3600)
+        set_cookie = headers.get("Set-Cookie", "")
+        self.assertIn(f"{ADMIN_SESSION_COOKIE}=", set_cookie)
+        self.assertIn("Secure", set_cookie)
+        self.assertIn("HttpOnly", set_cookie)
+        self.assertIn("SameSite=Strict", set_cookie)
+        self.assertIn("Path=/", set_cookie)
+        self.assertEqual(headers.get("Access-Control-Allow-Credentials"), "true")
+        cookie = self.cookie_from_headers(headers)
+        status, _, body = self.request(
+            "GET",
+            "/api/v1/admin/session",
+            headers={"Origin": "https://iambandobandz.com", "Cookie": cookie},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["authenticated"])
+        status, _, body = self.request(
+            "GET",
+            "/api/v1/admin/stats",
+            headers={"Origin": "https://iambandobandz.com", "Cookie": cookie},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["audit_chain_valid"])
+
+    def test_admin_login_rejects_wrong_token_and_hostile_origin(self):
+        status, headers, body = self.login(token="wrong")
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        self.assertIsNone(headers.get("Set-Cookie"))
+        status, _, body = self.login(origin="https://evil.example")
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"], "origin_not_allowed")
+
+    def test_admin_session_rejects_tampered_and_expired_cookie(self):
+        now = int(time.time())
+        valid = self.signed_session(now - 10, now + 600)
+        tampered = valid[:-1] + ("0" if valid[-1] != "0" else "1")
+        for token in [tampered, self.signed_session(now - 7200, now - 3600)]:
+            status, _, body = self.request(
+                "GET",
+                "/api/v1/admin/session",
+                headers={
+                    "Origin": "https://iambandobandz.com",
+                    "Cookie": f"{ADMIN_SESSION_COOKIE}={token}",
+                },
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "unauthorized")
+
+    def test_admin_session_cookie_requires_exact_origin(self):
+        status, headers, _ = self.login()
+        self.assertEqual(status, 200)
+        cookie = self.cookie_from_headers(headers)
+        status, _, body = self.request(
+            "GET",
+            "/api/v1/admin/session",
+            headers={"Origin": "https://evil.example", "Cookie": cookie},
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+
+    def test_admin_logout_clears_cookie(self):
+        status, headers, _ = self.login()
+        self.assertEqual(status, 200)
+        cookie = self.cookie_from_headers(headers)
+        status, headers, body = self.request(
+            "POST",
+            "/api/v1/admin/logout",
+            body={},
+            headers={"Origin": "https://iambandobandz.com", "Cookie": cookie},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertIn(f"{ADMIN_SESSION_COOKIE}=", headers.get("Set-Cookie", ""))
+        self.assertIn("Max-Age=0", headers.get("Set-Cookie", ""))
+
+    def test_admin_preflight_allows_credentials_only_for_exact_origin(self):
+        status, headers, _ = self.request(
+            "OPTIONS",
+            "/api/v1/admin/login",
+            headers={"Origin": "https://iambandobandz.com"},
+        )
+        self.assertEqual(status, 204)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), "https://iambandobandz.com")
+        self.assertEqual(headers.get("Access-Control-Allow-Credentials"), "true")
+        status, _, body = self.request(
+            "OPTIONS",
+            "/api/v1/admin/login",
+            headers={"Origin": "https://evil.example"},
+        )
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"], "origin_not_allowed")
 
     def test_healthz_exposes_no_pii(self):
         status, _, body = self.request("GET", "/healthz")
