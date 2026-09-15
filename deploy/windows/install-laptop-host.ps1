@@ -26,6 +26,67 @@ function Get-PythonCommand {
     if (-not $python) { throw "Python 3.11+ was not found on PATH." }
     return $python
 }
+function Ensure-Caddy {
+    $existing = Get-Command caddy -ErrorAction SilentlyContinue
+    if ($existing) { return $existing }
+
+    $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+        "AMD64" { "amd64" }
+        "ARM64" { "arm64" }
+        default { throw "Unsupported Windows architecture for automatic Caddy install: $env:PROCESSOR_ARCHITECTURE" }
+    }
+
+    Write-Host "Caddy not found. Downloading latest official Caddy release for windows/$arch..."
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/caddyserver/caddy/releases/latest" -Headers @{ "User-Agent" = "IAMBANDOBANDZ-Lead-Host-Installer" } -TimeoutSec 30
+    $pattern = "_windows_" + [regex]::Escape($arch) + "\\.zip$"
+    $asset = $release.assets | Where-Object { $_.name -match $pattern } | Select-Object -First 1
+
+    if (-not $asset) {
+        throw "Could not locate official Caddy Windows $arch ZIP in latest GitHub release."
+    }
+
+    $tempRoot = Join-Path $env:TEMP ("caddy-install-" + [guid]::NewGuid().ToString("N"))
+    $zipPath = Join-Path $tempRoot $asset.name
+    $extractPath = Join-Path $tempRoot "extract"
+    New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
+
+    try {
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -UseBasicParsing -TimeoutSec 120
+
+        if ($asset.digest -and $asset.digest.StartsWith("sha256:")) {
+            $expected = $asset.digest.Substring(7).ToLowerInvariant()
+            $actual = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+                throw "Caddy SHA-256 mismatch. Expected $expected, got $actual"
+            }
+            Write-Host "Caddy SHA-256 verified."
+        } else {
+            throw "Official Caddy release did not expose a SHA-256 digest; refusing unverified install."
+        }
+
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
+        $sourceExe = Get-ChildItem -LiteralPath $extractPath -Filter "caddy.exe" -Recurse | Select-Object -First 1
+        if (-not $sourceExe) { throw "caddy.exe not found inside downloaded archive." }
+
+        $installDir = Join-Path $env:ProgramFiles "Caddy"
+        New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+        $targetExe = Join-Path $installDir "caddy.exe"
+        Copy-Item -LiteralPath $sourceExe.FullName -Destination $targetExe -Force
+
+        $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        if (($machinePath -split ";") -notcontains $installDir) {
+            [Environment]::SetEnvironmentVariable("Path", ($machinePath.TrimEnd(";") + ";" + $installDir), "Machine")
+        }
+        if (($env:Path -split ";") -notcontains $installDir) {
+            $env:Path = $env:Path.TrimEnd(";") + ";" + $installDir
+        }
+
+        & $targetExe version
+        return (Get-Command $targetExe -ErrorAction Stop)
+    } finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Assert-Administrator
 
@@ -34,10 +95,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "lead_consent_service.py")
 }
 
 $python = Get-PythonCommand
-$caddy = Get-Command caddy -ErrorAction SilentlyContinue
-if (-not $caddy) {
-    throw "Caddy was not found on PATH. Install Caddy for Windows, then rerun this installer."
-}
+$caddy = Ensure-Caddy
 
 $stateRoot = Join-Path $env:ProgramData "IAMBANDOBANDZ\lead-consent"
 $envFile = Join-Path $stateRoot "lead-ledger.env"
