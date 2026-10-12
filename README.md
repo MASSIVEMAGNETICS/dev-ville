@@ -1,5 +1,15 @@
 # Dev-Ville / Victor: Verifiable Agent Runtime
 
+## Executable product delivery roles
+
+The repository now includes `devville_roles.py`: ten ordered role handoffs,
+SQLite tickets, runtime-recorded test execution, tested-file release ZIPs,
+revision invalidation, and a derived Chronos snapshot. See
+[`ROLE_RUNTIME.md`](ROLE_RUNTIME.md) for contracts and runnable commands.
+This integration prepares a release candidate; deployment and authenticated
+independent reviewers remain unimplemented. Run its regression suite with
+`python -m unittest -v test_devville_roles.py`.
+
 Dev-Ville began as a local software-company emulator. The current Victor layer turns it into a more interesting systems project: a **model-independent agent runtime with deterministic evidence, causal state continuity, capability-aware routing, verification receipts, outcome tracking, and bounded learning**.
 
 The useful claim is not "AGI." The useful claim is that important agent state can be made **reconstructable and falsifiable instead of living only inside a model's context window**.
