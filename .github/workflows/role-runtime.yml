@@ -1,0 +1,30 @@
+name: Executable role runtime
+on:
+  pull_request:
+    paths:
+      - devville_roles.py
+      - test_devville_roles.py
+      - trace0_chronos.py
+      - .github/workflows/role-runtime.yml
+  push:
+    branches: [main]
+    paths:
+      - devville_roles.py
+      - test_devville_roles.py
+      - trace0_chronos.py
+      - .github/workflows/role-runtime.yml
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m unittest -v test_devville_roles.py test_verification_boundary.py test_victor_identity_kernel.py

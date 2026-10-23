@@ -141,6 +141,9 @@ Those limits are deliberate: **the claim should stop where the evidence stops.**
 
 ## Documentation
 
+- [ROLE_RUNTIME.md](ROLE_RUNTIME.md) — ten-role ticket CLI, recorded QA execution,
+  predecessor-bound handoffs, and explicit deployment blockers
+
 - [`FRONTIER_PROOF.md`](FRONTIER_PROOF.md) — fastest technical review path
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system architecture
 - [`VICTOR_TOPOLOGY.md`](VICTOR_TOPOLOGY.md) — topology layer
