@@ -93,6 +93,71 @@ def verify_records(records, *, expected_chain_hash=None):
     return records
 
 
+
+HOLDOUT_SALT = "vsg1-synthetic-mission-holdout-v1"
+
+
+def synthetic_holdout_manifest(records):
+    """Preregister a mission-disjoint synthetic split without exporting events.
+
+    This manifest is *not* a real-world corpus or a neural accuracy result.
+    Full Chronos chain verification occurs before partitioning; each subset
+    is a view, not an independently restorable Chronos chain.
+    """
+    if not isinstance(records, list) or len(records) > MAX_FIXTURE_RECORDS:
+        raise ValueError("synthetic holdout requires a bounded record list")
+    verify_records(records)
+    groups = {}
+    event_groups = {}
+    for record in records:
+        event = record["event"]
+        try:
+            if (event["provenance"]["origin"] != "public_synthetic_fixture"
+                    or event["evidence"]["real_world_execution"] is not False):
+                raise ValueError("holdout accepts synthetic events only")
+            edges = [edge for edge in event["payload"]["graph_mutations"]
+                     if edge["op"] == "add_edge" and edge["edge_type"] == "CONTAINS"]
+            if len(edges) != 1:
+                raise ValueError("exactly one mission edge required")
+            mission = edges[0]["source"]
+            if type(mission) is not str or not mission.startswith("mission:synthetic-"):
+                raise ValueError("invalid synthetic mission group")
+            event_id = event["event_id"]
+        except (KeyError, TypeError, IndexError) as exc:
+            raise ValueError("invalid synthetic grouping metadata") from exc
+        groups.setdefault(mission, []).append(event_id)
+        event_groups[event_id] = mission
+    if len(groups) < 2 or len(event_groups) != len(records):
+        raise ValueError("holdout requires at least two disjoint missions and unique events")
+
+    ranked = sorted(groups, key=lambda group: (
+        hashlib.sha256((HOLDOUT_SALT + ":" + group).encode("utf-8")).hexdigest(),
+        group))
+    test_count = min(len(ranked) - 1, max(1, (len(ranked) + 3) // 4))
+    test_groups = set(ranked[:test_count])
+    train_groups = set(ranked[test_count:])
+
+    def partition(selected):
+        event_ids = [record["event"]["event_id"] for record in records
+                     if event_groups[record["event"]["event_id"]] in selected]
+        return {"groups": sorted(selected), "records": len(event_ids),
+                "ordered_event_ids_sha256": hashlib.sha256(
+                    canonical_bytes(event_ids)).hexdigest()}
+
+    return {
+        "protocol": "synthetic_mission_disjoint_holdout_v1",
+        "salt": HOLDOUT_SALT,
+        "source_corpus_sha256": hashlib.sha256(canonical_bytes(records)).hexdigest(),
+        "source_chain_head": records[-1]["receipt"]["chain_hash"],
+        "source_chain_verified": True,
+        "real_events": False,
+        "train": partition(train_groups),
+        "test": partition(test_groups),
+        "partition_chain_verification": "full_corpus_only",
+        "downstream_task_accuracy_measured": False,
+    }
+
+
 def to_triples(records):
     """Wrap the *entire* event+receipt as JSON; no lossy semantic projection."""
     triples = []
@@ -203,6 +268,11 @@ def run_benchmark(count=128, repeats=5):
                          "encode": _measure(encoder, repeats),
                          "decode_and_verify": _measure(
                              lambda: decoder(encoded, expected_chain_hash=expected_chain_hash), repeats)}
+    # Split metadata is outside measured encode/decode functions. A single
+    # synthetic mission cannot support group-disjoint train/test partitions.
+    holdout = (synthetic_holdout_manifest(records) if count > 16 else
+               {"available": False, "reason": "requires at least two synthetic missions",
+                "real_events": False, "downstream_task_accuracy_measured": False})
     baseline_size = results["zlib_json_9"]["encoded_bytes"]
     results["vsg1_full_record_adapter"]["size_ratio_vs_zlib_json"] = round(
         results["vsg1_full_record_adapter"]["encoded_bytes"] / baseline_size, 4)
@@ -213,6 +283,7 @@ def run_benchmark(count=128, repeats=5):
                    "expected_chain_head": expected_chain_hash,
                    "anchor_origin": "synthetic_fixture_pre_encoding_not_external_trust",
                    "canonical_json_bytes": len(raw)},
+        "evaluation_split": holdout,
         "environment": {"python": platform.python_version(), "platform": platform.platform(),
                         "machine": platform.machine(), "repeats": repeats},
         "methods": results,
@@ -220,7 +291,8 @@ def run_benchmark(count=128, repeats=5):
                         "VSG1 stores complete event+receipt JSON strings, not learned semantics",
                         "tracemalloc measures Python allocations, not native zlib memory",
                         "No neural downstream accuracy or energy measurement; CPU time is not energy",
-                        "Pinned head is derived from this synthetic fixture, not an external authenticated anchor"],
+                        "Pinned head is derived from this synthetic fixture, not an external authenticated anchor",
+                        "Mission-disjoint synthetic holdout is not a real-data or neural-accuracy evaluation"],
     }
 
 
