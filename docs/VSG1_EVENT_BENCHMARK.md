@@ -58,6 +58,21 @@ conventional tokenizer. Do not upload raw production Chronos logs to this public
 repository. Keep PR #36 and stacked security PR #38 behind independent exact-head
 review and explicit merge authorization.
 
+## Bounded baseline decoders
+
+The canonical JSON and zlib(JSON) reference decoders now enforce the same
+8,000,000-byte maximum uncompressed frame size as the VSG1 codec. The
+zlib baseline additionally bounds compressed input using the zlib
+`compressBound` formula, caps decompression output, and rejects truncated,
+corrupt, concatenated, and trailing-byte frames. Canonical JSON must be
+UTF-8, deterministic, and byte-for-byte canonical after parsing; duplicate
+object keys, nonfinite constants, whitespace variants, and ambiguous
+encodings are rejected. This is a benchmark safety gate, **not** an
+authentication mechanism or a claim that all real-event JSON formats are
+accepted. Baseline decoding now includes these validations in timing
+measurements; compare fresh exact-head benchmark artifacts rather than
+mixing timing results from earlier commits.
+
 ## Pinned chain-head verification (synthetic fixture only)
 
 All three benchmark decoders accept `expected_chain_hash` (64 lowercase
