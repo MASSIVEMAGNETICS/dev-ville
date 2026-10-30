@@ -64,7 +64,12 @@ def fixture_records(count):
             for event, receipt in zip(ledger.events(), ledger.receipts())]
 
 
-def verify_records(records):
+def verify_records(records, *, expected_chain_hash=None):
+    """Verify internal receipts and, when supplied, a separately trusted head."""
+    if expected_chain_hash is not None:
+        if (type(expected_chain_hash) is not str or len(expected_chain_hash) != 64
+                or any(ch not in "0123456789abcdef" for ch in expected_chain_hash)):
+            raise ValueError("expected_chain_hash must be a lowercase SHA-256 hex digest")
     if not isinstance(records, list) or not records:
         raise ValueError("records must be a nonempty list")
     if any(not isinstance(item, dict) or set(item) != {"event", "receipt"}
@@ -79,6 +84,8 @@ def verify_records(records):
         raise ValueError("Chronos provenance or receipt verification failed") from exc
     if not ledger.verify_chain():
         raise ValueError("Chronos chain verification failed")
+    if expected_chain_hash is not None and ledger.last_chain_hash != expected_chain_hash:
+        raise ValueError("Chronos trusted chain head mismatch")
     return records
 
 
@@ -95,7 +102,7 @@ def to_triples(records):
     return triples
 
 
-def from_triples(triples):
+def from_triples(triples, *, expected_chain_hash=None):
     if not isinstance(triples, list):
         raise ValueError("triples must be a list")
     records = []
@@ -113,19 +120,19 @@ def from_triples(triples):
         except (ValueError, TypeError, KeyError, UnicodeError) as exc:
             raise ValueError("invalid embedded Chronos record") from exc
         records.append(record)
-    return verify_records(records)
+    return verify_records(records, expected_chain_hash=expected_chain_hash)
 
 
-def json_decode(encoded):
-    return verify_records(json.loads(encoded))
+def json_decode(encoded, *, expected_chain_hash=None):
+    return verify_records(json.loads(encoded), expected_chain_hash=expected_chain_hash)
 
 
-def zlib_json_decode(encoded):
-    return json_decode(zlib.decompress(encoded))
+def zlib_json_decode(encoded, *, expected_chain_hash=None):
+    return json_decode(zlib.decompress(encoded), expected_chain_hash=expected_chain_hash)
 
 
-def vsg1_event_decode(encoded):
-    return from_triples(vsg1_decode(encoded))
+def vsg1_event_decode(encoded, *, expected_chain_hash=None):
+    return from_triples(vsg1_decode(encoded), expected_chain_hash=expected_chain_hash)
 
 
 def _measure(function, repeats):
@@ -151,6 +158,8 @@ def run_benchmark(count=128, repeats=5):
         raise ValueError("repeats must be an integer from 1 through 30")
     records = fixture_records(count)
     raw = canonical_bytes(records)
+    # Pinned before encoding; this synthetic fixture is NOT external proof.
+    expected_chain_hash = records[-1]["receipt"]["chain_hash"]
     methods = {
         "canonical_json": (lambda: canonical_bytes(records), json_decode),
         "zlib_json_9": (lambda: zlib.compress(canonical_bytes(records), level=9), zlib_json_decode),
@@ -159,14 +168,16 @@ def run_benchmark(count=128, repeats=5):
     results = {}
     for name, (encoder, decoder) in methods.items():
         encoded = encoder()
-        restored = decoder(encoded)
+        restored = decoder(encoded, expected_chain_hash=expected_chain_hash)
         if restored != records:
             raise AssertionError(f"lossy or incorrect roundtrip: {name}")
         results[name] = {"encoded_bytes": len(encoded),
                          "roundtrip_exact": True,
                          "chronos_chain_verified": True,
+                         "expected_chain_head_matched": True,
                          "encode": _measure(encoder, repeats),
-                         "decode_and_verify": _measure(lambda: decoder(encoded), repeats)}
+                         "decode_and_verify": _measure(
+                             lambda: decoder(encoded, expected_chain_hash=expected_chain_hash), repeats)}
     baseline_size = results["zlib_json_9"]["encoded_bytes"]
     results["vsg1_full_record_adapter"]["size_ratio_vs_zlib_json"] = round(
         results["vsg1_full_record_adapter"]["encoded_bytes"] / baseline_size, 4)
@@ -174,6 +185,8 @@ def run_benchmark(count=128, repeats=5):
         "corpus": {"kind": "synthetic_trace0_chronos_schema", "real_events": False,
                    "source_repo": SOURCE_REPO, "source_commit": SOURCE_COMMIT,
                    "records": count, "sha256_canonical_json": hashlib.sha256(raw).hexdigest(),
+                   "expected_chain_head": expected_chain_hash,
+                   "anchor_origin": "synthetic_fixture_pre_encoding_not_external_trust",
                    "canonical_json_bytes": len(raw)},
         "environment": {"python": platform.python_version(), "platform": platform.platform(),
                         "machine": platform.machine(), "repeats": repeats},
@@ -181,7 +194,8 @@ def run_benchmark(count=128, repeats=5):
         "limitations": ["Synthetic public-schema events, not production/held-out corpus",
                         "VSG1 stores complete event+receipt JSON strings, not learned semantics",
                         "tracemalloc measures Python allocations, not native zlib memory",
-                        "No neural downstream accuracy or energy measurement; CPU time is not energy"],
+                        "No neural downstream accuracy or energy measurement; CPU time is not energy",
+                        "Pinned head is derived from this synthetic fixture, not an external authenticated anchor"],
     }
 
 

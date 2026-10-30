@@ -1,10 +1,13 @@
 """Contracts for a non-sensitive, end-to-end Chronos/VSG1 comparison."""
 import json
 import unittest
+import zlib
 
 from semantic_codec import decode, encode
-from vsg1_event_benchmark import (PREDICATE, fixture_records, from_triples,
-                                  run_benchmark, to_triples, verify_records)
+from vsg1_event_benchmark import (PREDICATE, canonical_bytes, fixture_records,
+                                  from_triples, json_decode, run_benchmark,
+                                  to_triples, verify_records, vsg1_event_decode,
+                                  zlib_json_decode)
 
 
 class VSG1EventBenchmarkTests(unittest.TestCase):
@@ -42,14 +45,46 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             from_triples(rows)
 
+    def test_trusted_head_rejects_valid_but_wrong_snapshot(self):
+        expected = fixture_records(3)[-1]["receipt"]["chain_hash"]
+        other = fixture_records(4)
+        self.assertEqual(verify_records(other), other)
+        with self.assertRaisesRegex(ValueError, "trusted chain head mismatch"):
+            verify_records(other, expected_chain_hash=expected)
+
+    def test_all_decoders_enforce_pinned_head(self):
+        records = fixture_records(3)
+        expected = records[-1]["receipt"]["chain_hash"]
+        variants = (
+            (json_decode, canonical_bytes(records)),
+            (zlib_json_decode, zlib.compress(canonical_bytes(records), 9)),
+            (vsg1_event_decode, encode(to_triples(records))),
+        )
+        for decoder, payload in variants:
+            with self.subTest(decoder=decoder.__name__):
+                self.assertEqual(decoder(payload, expected_chain_hash=expected), records)
+                with self.assertRaisesRegex(ValueError, "trusted chain head mismatch"):
+                    decoder(payload, expected_chain_hash="0" * 64)
+
+    def test_malformed_trusted_head_rejected(self):
+        records = fixture_records(1)
+        for anchor in ("", "g" * 64, "A" * 64, 7, True):
+            with self.subTest(anchor=anchor), self.assertRaises(ValueError):
+                verify_records(records, expected_chain_hash=anchor)
+
     def test_all_three_methods_report_exact_roundtrip(self):
         report = run_benchmark(4, 1)
         self.assertFalse(report["corpus"]["real_events"])
+        self.assertEqual(report["corpus"]["expected_chain_head"],
+                         fixture_records(4)[-1]["receipt"]["chain_hash"])
+        self.assertEqual(report["corpus"]["anchor_origin"],
+                         "synthetic_fixture_pre_encoding_not_external_trust")
         self.assertEqual(set(report["methods"]),
                          {"canonical_json", "zlib_json_9", "vsg1_full_record_adapter"})
         for result in report["methods"].values():
             self.assertTrue(result["roundtrip_exact"])
             self.assertTrue(result["chronos_chain_verified"])
+            self.assertTrue(result["expected_chain_head_matched"])
             self.assertGreater(result["encoded_bytes"], 0)
             self.assertGreaterEqual(result["decode_and_verify"]["python_peak_kib"], 0)
 

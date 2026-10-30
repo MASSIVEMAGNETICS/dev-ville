@@ -57,3 +57,19 @@ held-out splits and compare task accuracy and neural inference costs against a
 conventional tokenizer. Do not upload raw production Chronos logs to this public
 repository. Keep PR #36 and stacked security PR #38 behind independent exact-head
 review and explicit merge authorization.
+
+## Pinned chain-head verification (synthetic fixture only)
+
+All three benchmark decoders accept `expected_chain_hash` (64 lowercase
+hexadecimal characters). The benchmark captures the fixture's Chronos chain
+head **before** encoding and requires the restored snapshot to match that head.
+An internally valid but different chain is rejected. Tests cover a wrong
+snapshot, incorrect pinned heads, and the same acceptance gate across JSON,
+zlib(JSON), and VSG1. Decode+verify timings include this check.
+
+**Trust boundary:** the fixture head comes from the same synthetic generator,
+not a separately authenticated authority. In real deployments, the expected
+head must be supplied from a trusted, independently retained checkpoint or
+signed receipt. A self-contained hash chain alone cannot prove who authored
+it or prevent wholesale rewriting. This does not change Chronos authority,
+execute actions, or authenticate real production data.
