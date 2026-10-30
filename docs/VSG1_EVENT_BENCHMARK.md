@@ -73,6 +73,29 @@ accepted. Baseline decoding now includes these validations in timing
 measurements; compare fresh exact-head benchmark artifacts rather than
 mixing timing results from earlier commits.
 
+## Synthetic mission-disjoint holdout (evaluation scaffolding only)
+
+For synthetic corpora with at least two 16-event missions, the benchmark report
+now includes `evaluation_split`. It verifies the **entire** Chronos chain first,
+then partitions by the synthetic mission `CONTAINS` edge. Groups are ranked by
+SHA-256 of a fixed versioned salt and mission ID; the first ceil(25%) of mission
+groups are held out. No mission appears in both train and test. The manifest
+records group names, record counts, ordered event-ID digests, full-corpus digest,
+and full-corpus chain head; it **does not** export event payloads.
+
+For fewer than 17 records, the report marks the split unavailable rather than
+inventing an independent group. The subsets are **not** individually valid
+Chronos chains because the original hash chain spans the entire corpus.
+`source_chain_verified` applies only to the original full corpus. The split is
+reproducible and provenance-labeled, but it does **not** demonstrate
+generalization, learned semantics, real-world privacy clearance, or neural
+task accuracy. All events remain synthetic. No production event data are read.
+
+The next real-data gate still requires affirmative authorization, an explicit
+redaction policy, an independently retained checkpoint, and held-out task
+labels established before training. Do not mistake a synthetic group split for
+independent replication or a semantic benchmark.
+
 ## Pinned chain-head verification (synthetic fixture only)
 
 All three benchmark decoders accept `expected_chain_hash` (64 lowercase
