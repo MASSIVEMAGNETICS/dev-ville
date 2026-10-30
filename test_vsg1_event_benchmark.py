@@ -1,4 +1,5 @@
 """Contracts for a non-sensitive, end-to-end Chronos/VSG1 comparison."""
+import hashlib
 import json
 import unittest
 import zlib
@@ -7,6 +8,7 @@ from unittest.mock import patch
 from semantic_codec import decode, encode
 from vsg1_event_benchmark import (PREDICATE, canonical_bytes, fixture_records,
                                   from_triples, json_decode, run_benchmark,
+                                  synthetic_holdout_manifest,
                                   to_triples, verify_records, vsg1_event_decode,
                                   zlib_json_decode)
 
@@ -118,6 +120,48 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
             self.assertTrue(result["expected_chain_head_matched"])
             self.assertGreater(result["encoded_bytes"], 0)
             self.assertGreaterEqual(result["decode_and_verify"]["python_peak_kib"], 0)
+
+    def test_mission_holdout_is_deterministic_disjoint_and_traceable(self):
+        records = fixture_records(128)
+        first = synthetic_holdout_manifest(records)
+        self.assertEqual(first, synthetic_holdout_manifest(fixture_records(128)))
+        self.assertFalse(first["real_events"])
+        self.assertTrue(first["source_chain_verified"])
+        self.assertFalse(first["downstream_task_accuracy_measured"])
+        self.assertEqual(first["partition_chain_verification"], "full_corpus_only")
+        train, test = first["train"], first["test"]
+        self.assertFalse(set(train["groups"]) & set(test["groups"]))
+        self.assertEqual(len(train["groups"]) + len(test["groups"]), 8)
+        self.assertEqual(train["records"] + test["records"], 128)
+        self.assertEqual(first["source_corpus_sha256"],
+                         hashlib.sha256(canonical_bytes(records)).hexdigest())
+        self.assertEqual(first["source_chain_head"],
+                         records[-1]["receipt"]["chain_hash"])
+        for partition in (train, test):
+            ids = [record["event"]["event_id"] for record in records
+                   if any(edge.get("source") in partition["groups"]
+                          for edge in record["event"]["payload"]["graph_mutations"])]
+            self.assertEqual(partition["ordered_event_ids_sha256"],
+                             hashlib.sha256(canonical_bytes(ids)).hexdigest())
+
+    def test_holdout_rejects_single_group_and_tampered_chain(self):
+        with self.assertRaisesRegex(ValueError, "at least two"):
+            synthetic_holdout_manifest(fixture_records(16))
+        records = fixture_records(32)
+        records[0]["event"]["provenance"]["origin"] = "production"
+        with self.assertRaises(ValueError):
+            synthetic_holdout_manifest(records)
+
+    def test_benchmark_artifact_contains_split_without_claiming_accuracy(self):
+        report = run_benchmark(32, 1)
+        split = report["evaluation_split"]
+        self.assertEqual(split["protocol"], "synthetic_mission_disjoint_holdout_v1")
+        self.assertFalse(split["downstream_task_accuracy_measured"])
+        self.assertEqual(split["train"]["records"] + split["test"]["records"], 32)
+        self.assertFalse(set(split["train"]["groups"]) & set(split["test"]["groups"]))
+        small = run_benchmark(4, 1)["evaluation_split"]
+        self.assertFalse(small["available"])
+        self.assertFalse(small["real_events"])
 
     def test_bounded_fixture_and_repeats(self):
         for count in (0, -1, 1025, True, 1.0):
