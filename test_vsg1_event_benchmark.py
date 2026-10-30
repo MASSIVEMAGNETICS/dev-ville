@@ -2,6 +2,7 @@
 import json
 import unittest
 import zlib
+from unittest.mock import patch
 
 from semantic_codec import decode, encode
 from vsg1_event_benchmark import (PREDICATE, canonical_bytes, fixture_records,
@@ -71,6 +72,36 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
         for anchor in ("", "g" * 64, "A" * 64, 7, True):
             with self.subTest(anchor=anchor), self.assertRaises(ValueError):
                 verify_records(records, expected_chain_hash=anchor)
+
+    def test_json_baseline_rejects_ambiguous_encodings(self):
+        raw = canonical_bytes(fixture_records(1))
+        duplicate_key = raw.replace(b'{"event":', b'{"event":null,"event":', 1)
+        for malformed in (b" " + raw, raw + b" ", duplicate_key,
+                          b'[{"event":NaN,"receipt":null}]'):
+            with self.subTest(payload=malformed[:40]), self.assertRaises(ValueError):
+                json_decode(malformed)
+        for invalid_type in (None, raw.decode("utf-8"), bytearray(raw)):
+            with self.subTest(type=type(invalid_type)), self.assertRaises(ValueError):
+                json_decode(invalid_type)
+
+    def test_zlib_baseline_rejects_trailing_truncated_and_corrupt_frames(self):
+        payload = zlib.compress(canonical_bytes(fixture_records(1)), level=9)
+        for malformed in (payload + b"trailing", payload[:-1], b"invalid-zlib"):
+            with self.subTest(length=len(malformed)), self.assertRaises(ValueError):
+                zlib_json_decode(malformed)
+
+    def test_json_baselines_enforce_size_and_expansion_limits(self):
+        raw = canonical_bytes(fixture_records(1))
+        with patch("vsg1_event_benchmark.MAX_JSON_BYTES", 16):
+            with self.assertRaisesRegex(ValueError, "oversized"):
+                json_decode(raw)
+        with patch("vsg1_event_benchmark.MAX_ZLIB_BYTES", 4):
+            with self.assertRaisesRegex(ValueError, "oversized"):
+                zlib_json_decode(zlib.compress(raw, 9))
+        # A small compressed frame must not expand beyond the configured bound.
+        with patch("vsg1_event_benchmark.MAX_JSON_BYTES", 64):
+            with self.assertRaisesRegex(ValueError, "oversized decompressed"):
+                zlib_json_decode(zlib.compress(b"x" * 65, 9))
 
     def test_all_three_methods_report_exact_roundtrip(self):
         report = run_benchmark(4, 1)
