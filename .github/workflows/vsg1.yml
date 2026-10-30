@@ -1,0 +1,27 @@
+name: Victor VSG1 Codec
+on:
+  pull_request:
+    paths:
+      - "semantic_codec.py"
+      - "test_semantic_codec.py"
+      - ".github/workflows/vsg1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "semantic_codec.py"
+      - "test_semantic_codec.py"
+      - ".github/workflows/vsg1.yml"
+jobs:
+  codec:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run codec tests
+        run: python -m unittest -v test_semantic_codec.py
