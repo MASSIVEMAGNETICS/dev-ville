@@ -24,6 +24,10 @@ SOURCE_REPO = "MASSIVEMAGNETICS/dev-ville"
 SOURCE_COMMIT = "f4d340c48d6b23af6bc708c45ece7872499c3273"
 PREDICATE = "chronos_record_json"
 MAX_FIXTURE_RECORDS = 1024
+# Keep benchmark baseline decoders bounded to the VSG1 raw-frame limit.
+MAX_JSON_BYTES = 8_000_000
+MAX_ZLIB_BYTES = (MAX_JSON_BYTES + (MAX_JSON_BYTES >> 12)
+                  + (MAX_JSON_BYTES >> 14) + (MAX_JSON_BYTES >> 25) + 13)
 
 
 def canonical_bytes(value):
@@ -124,11 +128,32 @@ def from_triples(triples, *, expected_chain_hash=None):
 
 
 def json_decode(encoded, *, expected_chain_hash=None):
-    return verify_records(json.loads(encoded), expected_chain_hash=expected_chain_hash)
+    """Decode only bounded canonical UTF-8 JSON, then verify Chronos."""
+    if type(encoded) is not bytes or not 1 <= len(encoded) <= MAX_JSON_BYTES:
+        raise ValueError("invalid or oversized canonical JSON payload")
+    try:
+        records = json.loads(
+            encoded, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
+        if canonical_bytes(records) != encoded:
+            raise ValueError("noncanonical JSON payload")
+    except (ValueError, TypeError, UnicodeError, OverflowError, RecursionError) as exc:
+        raise ValueError("invalid canonical JSON payload") from exc
+    return verify_records(records, expected_chain_hash=expected_chain_hash)
 
 
 def zlib_json_decode(encoded, *, expected_chain_hash=None):
-    return json_decode(zlib.decompress(encoded), expected_chain_hash=expected_chain_hash)
+    """Bound compressed input and expansion; reject incomplete/trailing frames."""
+    if type(encoded) is not bytes or not 1 <= len(encoded) <= MAX_ZLIB_BYTES:
+        raise ValueError("invalid or oversized compressed JSON payload")
+    inflater = zlib.decompressobj()
+    try:
+        raw = inflater.decompress(encoded, MAX_JSON_BYTES + 1)
+        if (len(raw) > MAX_JSON_BYTES or not inflater.eof
+                or inflater.unused_data or inflater.unconsumed_tail):
+            raise ValueError("invalid or oversized decompressed JSON payload")
+    except zlib.error as exc:
+        raise ValueError("invalid compressed JSON payload") from exc
+    return json_decode(raw, expected_chain_hash=expected_chain_hash)
 
 
 def vsg1_event_decode(encoded, *, expected_chain_hash=None):
