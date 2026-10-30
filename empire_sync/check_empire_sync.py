@@ -121,6 +121,19 @@ def validate_anchor_existence(manifest: dict, checks: dict) -> None:
     )
 
 
+def evaluate_frontier_radar(radar: object) -> tuple[bool, str]:
+    """Fail closed on malformed radar observations without losing the status receipt."""
+    if not isinstance(radar, dict):
+        return False, "frontier radar status must be a JSON object"
+    healthy = radar.get("healthy")
+    sources = radar.get("healthy_source_count")
+    errors = radar.get("error_count")
+    if type(healthy) is not bool or type(sources) is not int or type(errors) is not int:
+        return False, "invalid frontier radar field types: healthy=bool, healthy_source_count=int, error_count=int required"
+    ok = healthy is True and sources >= 2 and errors == 0
+    return ok, f"healthy={healthy} sources={sources} errors={errors}"
+
+
 def validate_remote_surface(manifest: dict, checks: dict) -> None:
     surface = manifest["remote_surface"]
     repo = surface["repository"]
@@ -216,17 +229,8 @@ def validate_remote_surface(manifest: dict, checks: dict) -> None:
         else f"proof ledger missing: {proof_missing}",
     )
 
-    radar_ok = (
-        radar.get("healthy") is True
-        and int(radar.get("healthy_source_count", 0)) >= 2
-        and int(radar.get("error_count", 1)) == 0
-    )
-    record(
-        checks,
-        "frontier_radar_health",
-        radar_ok,
-        f"healthy={radar.get('healthy')} sources={radar.get('healthy_source_count')} errors={radar.get('error_count')}",
-    )
+    radar_ok, radar_detail = evaluate_frontier_radar(radar)
+    record(checks, "frontier_radar_health", radar_ok, radar_detail)
 
 
 def build_report(local_only: bool) -> tuple[dict, bool]:
