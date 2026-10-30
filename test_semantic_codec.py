@@ -39,7 +39,7 @@ class CodecTests(unittest.TestCase):
         return MAGIC + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
 
     def test_invalid_unicode_rejected_before_serialization(self):
-        rows = [{"subject": "\\ud800", "predicate": "observed", "object": "x"}]
+        rows = [{"subject": "\ud800", "predicate": "observed", "object": "x"}]
         with self.assertRaises(ValueError):
             encode(rows)
 
