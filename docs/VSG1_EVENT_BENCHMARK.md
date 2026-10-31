@@ -73,6 +73,18 @@ accepted. Baseline decoding now includes these validations in timing
 measurements; compare fresh exact-head benchmark artifacts rather than
 mixing timing results from earlier commits.
 
+## Adversarial JSON nesting gate
+
+Both the VSG1 structural decoder and the direct Chronos triple adapter now
+convert Python JSON decoder `RecursionError` and `OverflowError` into
+`ValueError`, preserving the public decoder's fail-closed error contract.
+Regression tests supply a 12,000-level nested JSON input and require rejection
+without an uncaught interpreter exception. This is an exception-boundary
+hardening step, not proof of complete denial-of-service resistance. The VSG1
+wire decoder remains bounded by its existing compressed/uncompressed limits;
+the direct adapter should only receive trusted or separately size-bounded
+inputs in production.
+
 ## Synthetic mission-disjoint holdout (evaluation scaffolding only)
 
 For synthetic corpora with at least two 16-event missions, the benchmark report
