@@ -6,7 +6,7 @@ import zlib
 
 from vsg1_bpe_probe import (
     apply_merge, decode_packed_tokens, detokenize, read_merge_table,
-    run_probe, tokenize, train_bpe,
+    _strict_zlib_bytes, measure_heldout_codecs, run_probe, tokenize, train_bpe,
 )
 
 
@@ -137,6 +137,42 @@ class SyntheticBPEProbeTests(unittest.TestCase):
         tokens = tokenize(raw, merges)
         packed = b"".join(struct.pack(">H", token) for token in tokens)
         self.assertEqual(decode_packed_tokens(zlib.compress(packed), merges), raw)
+
+    def test_heldout_timing_baselines_verify_exact_bytes(self):
+        report = measure_heldout_codecs(
+            b"banana bandana!" * 100, train_bpe([b"banana banana"], 8), 2)
+        self.assertFalse(report["real_events"])
+        self.assertFalse(report["semantic_accuracy_measured"])
+        self.assertFalse(report["training_included_in_timing"])
+        self.assertFalse(report["chronos_chain_verification_included_in_timing"])
+        for method in report["methods"].values():
+            for phase in ("encode", "decode"):
+                self.assertGreaterEqual(method[phase]["wall_ms_median"], 0)
+                self.assertGreaterEqual(method[phase]["cpu_ms_median"], 0)
+                self.assertGreaterEqual(method[phase]["python_peak_kib"], 0)
+        self.assertGreater(report["methods"]["zlib_json_9"]["encoded_bytes"], 0)
+        self.assertGreater(report["methods"]["bpe_uint16_zlib_9"]["model_bytes"], 0)
+
+    def test_timing_is_optional_for_deterministic_manifest(self):
+        baseline = run_probe(32, 8)
+        timed = run_probe(32, 8, 1)
+        self.assertNotIn("heldout_timing", baseline)
+        self.assertIn("heldout_timing", timed)
+        timed.pop("heldout_timing")
+        self.assertEqual(baseline, timed)
+
+    def test_timing_and_strict_zlib_reject_bad_inputs(self):
+        for repeats in (0, 11, True, 1.5, -1):
+            with self.subTest(repeats=repeats), self.assertRaises(ValueError):
+                measure_heldout_codecs(b"abc", (), repeats)
+        for raw in (b"", None, "abc", b"x" * 8_000_001):
+            with self.subTest(raw=type(raw).__name__), self.assertRaises(ValueError):
+                measure_heldout_codecs(raw, (), 1)
+        frame = zlib.compress(b"abc")
+        self.assertEqual(_strict_zlib_bytes(frame), b"abc")
+        for bad in (frame[:-1], frame + b"tail", frame + frame, b"invalid"):
+            with self.subTest(bad=repr(bad)[:30]), self.assertRaises(ValueError):
+                _strict_zlib_bytes(bad)
 
     def test_invalid_group_count_rejected(self):
         with self.assertRaises(ValueError):
