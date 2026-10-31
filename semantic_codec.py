@@ -78,7 +78,7 @@ def decode(payload):
         if encode(rows) != payload:
             raise ValueError("noncanonical payload")
         return rows
-    except (ValueError, TypeError, IndexError, KeyError) as exc:
+    except (ValueError, TypeError, IndexError, KeyError, RecursionError, OverflowError) as exc:
         raise ValueError("invalid semantic encoding") from exc
 
 def benchmark(records):
