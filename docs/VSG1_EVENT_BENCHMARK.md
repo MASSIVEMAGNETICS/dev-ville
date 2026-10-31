@@ -137,3 +137,33 @@ oversized fields, lone surrogates, excessive record counts, aggregate bytes,
 and the existing deeply nested input. These checks bound *accepted* input;
 they do not prevent a caller from allocating an oversized list or string
 before invoking the adapter, nor prove immunity to all resource exhaustion.
+
+
+## Train-only byte-pair vocabulary probe (synthetic, nonsemantic)
+
+`vsg1_bpe_probe.py` is a bounded, standard-library-only **learned tokenization
+probe**, not a learned semantic encoder. It verifies the complete Chronos chain
+before applying the already preregistered mission-disjoint synthetic split.
+A deterministic byte-pair vocabulary (maximum 128 merges) is fitted **only**
+on training-mission canonical event+receipt documents; held-out missions never
+participate in merge selection. Token IDs are 16-bit; the report includes the
+full merge-table overhead (4 bytes per learned pair) plus zlib-compressed
+token IDs and compares that total to zlib-compressed canonical held-out JSON.
+The byte-token reduction is **not** a conventional LLM-tokenizer comparison.
+
+```sh
+python -m unittest -v test_vsg1_bpe_probe.py
+python vsg1_bpe_probe.py --records 128 --merges 64
+```
+
+CI runs this probe on Python 3.10/3.11/3.12 and publishes the JSON alongside
+the original lossless codec benchmark. The report records training and testing
+corpus digests, full chain head, model size, exact held-out recovery, and
+measured sizes. This is not a production wire codec; the compressed token
+stream and merge table are a research cost estimate without a complete
+authenticated envelope. The benchmark does not measure neural accuracy,
+semantic similarity, or energy and cannot establish a token successor.
+The original full Chronos chain is verified before splitting; split subsets
+are not independently valid chains. The next research gate remains
+independent exact-head review and a privacy-approved real-event corpus with
+preregistered task labels and conventional tokenizer baselines.
