@@ -1,4 +1,5 @@
 import hashlib
+import json
 import struct
 import unittest
 import zlib
@@ -86,6 +87,35 @@ class CodecTests(unittest.TestCase):
         raw = b'[1,["\xff"],[[0,0,0]]]'
         with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
             decode(self._raw_frame(raw))
+
+    def test_reject_alternate_json_encodings_before_parser(self):
+        # Python json.loads(bytes) auto-detects UTF-16/32, unlike the
+        # byte-oriented preflight. Even escaped quotes must not bypass it.
+        source = json.dumps([1, ['"'], [[0, 0, 0]]], separators=(",", ":"))
+        for encoding in ("utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"):
+            with self.subTest(encoding=encoding):
+                frame = self._raw_frame(source.encode(encoding))
+                with patch("semantic_codec.json.loads",
+                           side_effect=AssertionError("parser allocation reached")):
+                    with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+                        decode(frame)
+
+    def test_large_utf16_matrix_bomb_rejected_before_parser(self):
+        # The review's bypass uses alternate-encoded JSON and escaped
+        # quotes. The compressed frame is tiny relative to its matrix.
+        source = json.dumps([1, ['"'], [[]] * 100001], separators=(",", ":"))
+        raw = source.encode("utf-16-le")
+        self.assertGreater(len(raw), 128000)
+        frame = self._raw_frame(raw)
+        self.assertLess(len(frame), 12000)
+        with patch("semantic_codec.json.loads",
+                   side_effect=AssertionError("parser allocation reached")):
+            with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+                decode(frame)
+
+    def test_canonical_escaped_nul_symbol_still_roundtrips(self):
+        rows = [{"subject": "\x00", "predicate": "observed", "object": "x"}]
+        self.assertEqual(decode(encode(rows)), rows)
 
     def test_benchmark(self):
         result = benchmark(self.rows)
