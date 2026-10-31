@@ -42,6 +42,15 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             from_triples(rows)
 
+    def test_embedded_json_depth_bomb_fails_closed(self):
+        # An untrusted direct adapter caller can supply a deeply nested
+        # JSON string even when the wire codec's 10k-character limit
+        # would otherwise prevent it.
+        deep = "[" * 12000 + "0" + "]" * 12000
+        rows = [{"subject": "synthetic", "predicate": PREDICATE, "object": deep}]
+        with self.assertRaisesRegex(ValueError, "invalid embedded Chronos record"):
+            from_triples(rows)
+
     def test_wrong_predicate_rejected(self):
         rows = to_triples(fixture_records(1))
         rows[0]["predicate"] = PREDICATE + "-altered"
