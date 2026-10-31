@@ -41,6 +41,32 @@ class CodecTests(unittest.TestCase):
         row = {"subject": "x", "predicate": "x", "object": "x"}
         self.assertEqual(len(decode(encode([row] * 100000))), 100000)
 
+    def _raw_frame(self, raw):
+        return b"VSG1" + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
+
+    def test_parser_stage_empty_array_bomb_rejected_before_json_loads(self):
+        # Independent P2 finding: ~8 MB expands from a <12 KB frame.
+        # json.loads must not materialize 2.6 million empty arrays.
+        raw = b'[1,["x"],[' + b'[],' * 2666662 + b'[]]]'
+        self.assertEqual(len(raw), 8_000_000)
+        frame = self._raw_frame(raw)
+        self.assertLess(len(frame), 12_000)
+        with patch("semantic_codec.json.loads", side_effect=AssertionError("parser allocation reached")):
+            with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+                decode(frame)
+
+    def test_oversized_symbol_table_rejected_before_json_loads(self):
+        # Bound another source of pre-validation container amplification.
+        raw = b'[1,[' + b'"",' * 300001 + b'"x"],[]]'
+        with patch("semantic_codec.json.loads", side_effect=AssertionError("parser allocation reached")):
+            with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+                decode(self._raw_frame(raw))
+
+    def test_nested_malformed_payload_fails_closed(self):
+        raw = b'[1,[],' + b'[' * 12000 + b'0' + b']' * 12000 + b']'
+        with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+            decode(self._raw_frame(raw))
+
     def test_benchmark(self):
         result = benchmark(self.rows)
         self.assertTrue(result["roundtrip_exact"])
