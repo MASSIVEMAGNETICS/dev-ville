@@ -67,6 +67,26 @@ class CodecTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
             decode(self._raw_frame(raw))
 
+    def test_encode_rejects_lone_surrogates_as_valueerror(self):
+        for bad in ("\u005cud800", "\u005cudfff"):
+            with self.subTest(bad=repr(bad)):
+                rows = [{"subject": bad, "predicate": "observed", "object": "x"}]
+                with self.assertRaisesRegex(ValueError, "valid UTF-8"):
+                    encode(rows)
+
+    def test_decode_rejects_escaped_lone_surrogate_as_valueerror(self):
+        # Valid frame length and SHA: JSON parses but re-encoding cannot
+        # represent this Unicode surrogate in canonical UTF-8.
+        raw = b'[1,["\\\\ud800"],[[0,0,0]]]'
+        with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+            decode(self._raw_frame(raw))
+
+    def test_decode_rejects_invalid_utf8_as_valueerror(self):
+        # Valid frame integrity does not imply the JSON bytes are UTF-8.
+        raw = b'[1,["\\xff"],[[0,0,0]]]'
+        with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+            decode(self._raw_frame(raw))
+
     def test_benchmark(self):
         result = benchmark(self.rows)
         self.assertTrue(result["roundtrip_exact"])
