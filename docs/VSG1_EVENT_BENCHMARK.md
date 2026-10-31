@@ -178,3 +178,19 @@ reversibility. Four adversarial tests reject invalid merge references,
 truncated/concatenated/trailing compressed frames, odd packed-byte counts,
 invalid token IDs, and decompression expansion beyond 8 MB. This is still
 an unauthenticated research format, not a production Chronos envelope.
+
+### Bounded BPE detokenization memory
+
+The serialized BPE decoder now computes each merge symbol's expanded length
+**before** materializing any output. It validates the complete merge table,
+rejects non-repeatable token iterators, checks token IDs, and preflights the
+8,000,000-byte aggregate decoded-output ceiling. It then expands only symbols
+actually referenced by the token stream using an explicit stack, instead of
+eagerly constructing every vocabulary byte string. This prevents a valid but
+adversarial merge table containing unused exponentially large symbols from
+allocating megabytes during an otherwise tiny decode. Three regression tests
+cover unused exponential merges, preflight rejection of oversized output with
+a Python allocation ceiling, and rejection of single-use token generators.
+The memory test uses `tracemalloc` (Python allocations only); it is not a
+whole-process RSS or native-zlib memory guarantee. This does not authenticate
+the frame, replace Chronos, or establish semantic accuracy.
