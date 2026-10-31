@@ -167,3 +167,14 @@ The original full Chronos chain is verified before splitting; split subsets
 are not independently valid chains. The next research gate remains
 independent exact-head review and a privacy-approved real-event corpus with
 preregistered task labels and conventional tokenizer baselines.
+
+### Serialized BPE frame recovery gate
+
+The probe now reconstructs the 16-bit token stream from the **actual zlib
+frame** and restores the learned merge table from its serialized 4-byte pairs
+before checking byte-for-byte held-out recovery. Earlier results verified
+in-memory tokens only; that was insufficient to establish serialized
+reversibility. Four adversarial tests reject invalid merge references,
+truncated/concatenated/trailing compressed frames, odd packed-byte counts,
+invalid token IDs, and decompression expansion beyond 8 MB. This is still
+an unauthenticated research format, not a production Chronos envelope.
