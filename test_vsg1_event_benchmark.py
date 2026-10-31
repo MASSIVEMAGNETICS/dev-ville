@@ -43,13 +43,33 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
             from_triples(rows)
 
     def test_embedded_json_depth_bomb_fails_closed(self):
-        # An untrusted direct adapter caller can supply a deeply nested
-        # JSON string even when the wire codec's 10k-character limit
-        # would otherwise prevent it.
+        # Direct callers now reject an oversized field before JSON parsing.
         deep = "[" * 12000 + "0" + "]" * 12000
         rows = [{"subject": "synthetic", "predicate": PREDICATE, "object": deep}]
-        with self.assertRaisesRegex(ValueError, "invalid embedded Chronos record"):
+        with self.assertRaises(ValueError):
             from_triples(rows)
+
+    def test_direct_adapter_rejects_oversized_and_invalid_unicode_fields(self):
+        row = to_triples(fixture_records(1))[0]
+        for field, value in (("object", "x" * 10001),
+                             ("subject", "s" * 10001),
+                             ("object", "\\ud800")):
+            invalid = dict(row)
+            invalid[field] = value
+            with self.subTest(field=field, length=len(value)):
+                with self.assertRaises(ValueError):
+                    from_triples([invalid])
+
+    def test_direct_adapter_rejects_excessive_record_count(self):
+        row = to_triples(fixture_records(1))[0]
+        with self.assertRaisesRegex(ValueError, "bounded list"):
+            from_triples([row] * 100001)
+
+    def test_direct_adapter_enforces_aggregate_byte_limit_before_parsing(self):
+        row = to_triples(fixture_records(1))[0]
+        with patch("vsg1_event_benchmark.MAX_JSON_BYTES", 64):
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                from_triples([row])
 
     def test_wrong_predicate_rejected(self):
         rows = to_triples(fixture_records(1))
