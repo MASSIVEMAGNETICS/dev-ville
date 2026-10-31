@@ -121,7 +121,7 @@ class SyntheticBPEProbeTests(unittest.TestCase):
     def test_large_packed_stream_has_bounded_python_allocations(self):
         # 1,000,000 uint16 byte tokens previously became a million-element
         # Python list before detokenization. The packed frame is repeatable.
-        frame = zlib.compress(b"\\x00A" * 1_000_000, level=9)
+        frame = zlib.compress(b"\x00A" * 1_000_000, level=9)
         tracemalloc.start()
         try:
             decoded = decode_packed_tokens(frame, ())
@@ -133,7 +133,7 @@ class SyntheticBPEProbeTests(unittest.TestCase):
 
     def test_streamed_packed_tokens_match_reference_with_learned_merges(self):
         merges = train_bpe([b"banana banana", b"banana bandana"], 12)
-        raw = (b"banana bandana!\\x00\\xff" * 1000)
+        raw = (b"banana bandana!\x00\xff" * 1000)
         tokens = tokenize(raw, merges)
         packed = b"".join(struct.pack(">H", token) for token in tokens)
         self.assertEqual(decode_packed_tokens(zlib.compress(packed), merges), raw)
