@@ -8,8 +8,6 @@ on:
       - "test_vsg1_event_benchmark.py"
       - "vsg1_bpe_probe.py"
       - "test_vsg1_bpe_probe.py"
-      - "vsg1_bpe_probe.py"
-      - "test_vsg1_bpe_probe.py"
       - "docs/VSG1_EVENT_BENCHMARK.md"
       - ".github/workflows/vsg1.yml"
   push:
@@ -19,6 +17,8 @@ on:
       - "test_semantic_codec.py"
       - "vsg1_event_benchmark.py"
       - "test_vsg1_event_benchmark.py"
+      - "vsg1_bpe_probe.py"
+      - "test_vsg1_bpe_probe.py"
       - "docs/VSG1_EVENT_BENCHMARK.md"
       - ".github/workflows/vsg1.yml"
 jobs:
