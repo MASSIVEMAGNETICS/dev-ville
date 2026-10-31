@@ -96,6 +96,11 @@ def validate(records):
             raise ValueError("record must contain exactly subject, predicate, object")
         if any(not isinstance(v, str) or len(v) > 10000 for v in row.values()):
             raise ValueError("record values must be strings <= 10000 characters")
+        for value in row.values():
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ValueError("record values must be valid UTF-8") from exc
 
 def encode(records):
     validate(records)
@@ -137,7 +142,7 @@ def decode(payload):
         if encode(rows) != payload:
             raise ValueError("noncanonical payload")
         return rows
-    except (ValueError, TypeError, IndexError, KeyError, RecursionError, OverflowError) as exc:
+    except (ValueError, TypeError, IndexError, KeyError, RecursionError, OverflowError, UnicodeError) as exc:
         raise ValueError("invalid semantic encoding") from exc
 
 def benchmark(records):
