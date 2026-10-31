@@ -12,7 +12,8 @@ import struct
 import zlib
 
 from vsg1_event_benchmark import (
-    canonical_bytes, fixture_records, synthetic_holdout_manifest, verify_records,
+    _measure, canonical_bytes, fixture_records, synthetic_holdout_manifest,
+    verify_records,
 )
 
 MAX_MERGES = 128
@@ -178,7 +179,85 @@ def _mission(record):
     return edges[0]["source"]
 
 
-def run_probe(count=128, max_merges=64):
+
+def _strict_zlib_bytes(frame):
+    """Bounded, single-frame byte decoder for a comparable held-out baseline."""
+    if type(frame) is not bytes or not frame:
+        raise ValueError("invalid compressed baseline frame")
+    limit = MAX_PACKED_FRAME_BYTES
+    compressed_limit = limit + (limit >> 12) + (limit >> 14) + (limit >> 25) + 13
+    if len(frame) > compressed_limit:
+        raise ValueError("compressed baseline frame exceeds limit")
+    try:
+        decompressor = zlib.decompressobj()
+        raw = decompressor.decompress(frame, limit + 1)
+    except zlib.error as exc:
+        raise ValueError("invalid compressed baseline frame") from exc
+    if (len(raw) > limit or not decompressor.eof
+            or decompressor.unused_data or decompressor.unconsumed_tail):
+        raise ValueError("truncated, trailing or oversized baseline frame")
+    return raw
+
+
+def measure_heldout_codecs(heldout, merges, timing_repeats=3):
+    """Compare frozen BPE and zlib(JSON) on identical held-out bytes.
+
+    Excludes training, corpus generation, Chronos restoration and model load.
+    Includes tokenization, uint16 packing, zlib, and BPE detokenization.
+    """
+    if type(timing_repeats) is not int or not 1 <= timing_repeats <= 10:
+        raise ValueError("timing_repeats must be an integer from 1 through 10")
+    if type(heldout) is not bytes or not heldout or len(heldout) > MAX_PACKED_FRAME_BYTES:
+        raise ValueError("invalid held-out byte corpus")
+
+    def bpe_encode():
+        tokens = tokenize(heldout, merges)
+        packed = b"".join(struct.pack(">H", token) for token in tokens)
+        return zlib.compress(packed, level=9)
+
+    def zlib_encode():
+        return zlib.compress(heldout, level=9)
+
+    baseline_frame = zlib_encode()
+    bpe_frame = bpe_encode()
+    if (_strict_zlib_bytes(baseline_frame) != heldout
+            or decode_packed_tokens(bpe_frame, merges) != heldout):
+        raise AssertionError("held-out byte recovery failed")
+    return {
+        "protocol": "synthetic_heldout_bpe_vs_zlib_timing_v1",
+        "repeats": timing_repeats,
+        "real_events": False,
+        "semantic_accuracy_measured": False,
+        "training_included_in_timing": False,
+        "chronos_chain_verification_included_in_timing": False,
+        "model_serialization_included_in_timing": False,
+        "memory_measurement": "tracemalloc Python allocations only, not native RSS",
+        "methods": {
+            "zlib_json_9": {
+                "encoded_bytes": len(baseline_frame),
+                "encode": _measure(zlib_encode, timing_repeats),
+                "decode": _measure(lambda: _strict_zlib_bytes(baseline_frame), timing_repeats),
+            },
+            "bpe_uint16_zlib_9": {
+                "encoded_bytes_excluding_model": len(bpe_frame),
+                "model_bytes": len(merges) * 4,
+                "encoded_bytes_including_model": len(bpe_frame) + len(merges) * 4,
+                "encode": _measure(bpe_encode, timing_repeats),
+                "decode": _measure(lambda: decode_packed_tokens(bpe_frame, merges), timing_repeats),
+            },
+        },
+        "limitations": [
+            "Synthetic mission-disjoint holdout only; no real event data",
+            "Byte recovery is measured, not neural downstream task accuracy",
+            "Frozen vocabulary training and model loading excluded from timings",
+            "No full Chronos restore/receipt verification in timed operations",
+            "CPU time is not an energy measurement; timings are environment-dependent",
+            "tracemalloc excludes native zlib memory and whole-process RSS",
+        ],
+    }
+
+
+def run_probe(count=128, max_merges=64, timing_repeats=None):
     """Evaluate frozen train-only merges on previously unseen synthetic missions."""
     records = fixture_records(count)
     verify_records(records)
@@ -204,7 +283,7 @@ def run_probe(count=128, max_merges=64):
     if restored_merges != merges or decode_packed_tokens(encoded, restored_merges) != heldout:
         raise AssertionError("serialized held-out tokenizer frame is not reversible")
     zlib_baseline = zlib.compress(heldout, level=9)
-    return {
+    report = {
         "protocol": "vsg1_synthetic_train_only_bpe_probe_v1",
         "real_events": False,
         "semantic_accuracy_measured": False,
@@ -239,6 +318,10 @@ def run_probe(count=128, max_merges=64):
             "Original full Chronos chain verified before split; subsets are not standalone chains",
         ],
     }
+    if timing_repeats is not None:
+        report["heldout_timing"] = measure_heldout_codecs(
+            heldout, restored_merges, timing_repeats)
+    return report
 
 
 if __name__ == "__main__":
@@ -246,5 +329,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--records", type=int, default=128)
     parser.add_argument("--merges", type=int, default=64)
+    parser.add_argument("--timing-repeats", type=int, default=3)
     args = parser.parse_args()
-    print(json.dumps(run_probe(args.records, args.merges), indent=2, sort_keys=True))
+    print(json.dumps(run_probe(args.records, args.merges, args.timing_repeats),
+                     indent=2, sort_keys=True))
