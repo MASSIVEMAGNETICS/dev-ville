@@ -128,8 +128,16 @@ def decode(payload):
     if hashlib.sha256(raw).digest() != payload[8:40]:
         raise ValueError("integrity check failed")
     try:
+        # Canonical VSG1 frames are UTF-8 JSON, never UTF-16/UTF-32.
+        # json.loads(bytes) auto-detects alternate encodings, which can
+        # bypass the byte-oriented structural preflight and allocate huge
+        # noncanonical matrices before validation. Reject NULs up front,
+        # then parse explicitly decoded UTF-8 text only.
+        if b"\x00" in raw:
+            raise ValueError("NUL byte in canonical UTF-8 frame")
+        text = raw.decode("utf-8")
         _preflight_structure(raw)
-        version, symbols, matrix = json.loads(raw)
+        version, symbols, matrix = json.loads(text)
         if version != 1 or not isinstance(symbols, list) or symbols != sorted(set(symbols)):
             raise ValueError("invalid symbol table")
         if not isinstance(matrix, list) or len(matrix) > 100000:
