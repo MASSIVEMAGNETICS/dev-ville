@@ -314,7 +314,7 @@ def run_probe(count=128, max_merges=64, timing_repeats=None):
             "16-bit token stream is compressed with zlib; framing not production-ready",
             "Serialized model and compressed uint16 frame are now decoded end-to-end",
             "Experimental decoder has size/integrity checks but no authentication",
-            "Model overhead is counted; no inference accuracy, latency or energy measured",
+            "Model overhead is counted; no neural inference accuracy, inference latency or energy measured",
             "Original full Chronos chain verified before split; subsets are not standalone chains",
         ],
     }
