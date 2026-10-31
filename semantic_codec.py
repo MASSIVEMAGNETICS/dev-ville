@@ -8,6 +8,7 @@ import zlib
 MAGIC = b"VSG1"
 MAX_BYTES = 8_000_000
 MAX_RECORDS = 100_000
+MAX_SYMBOLS = 3 * MAX_RECORDS
 
 def _compress_bound(size):
     """zlib compressBound upper bound for a size-byte input."""
@@ -18,48 +19,79 @@ MAX_FRAME_BYTES = 40 + _compress_bound(MAX_BYTES)
 def _json(obj):
     return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
-def _preflight_matrix_rows(raw):
-    """Reject oversized matrix arrays before json.loads materializes Python rows.
+def _preflight_structure(raw):
+    """Bound JSON container allocation before json.loads on untrusted frames.
 
-    This lexical scan is deliberately not a JSON parser: it only counts the
-    third top-level array's entries, ignoring quoted strings and escapes.
-    The JSON parser and strict schema validation remain authoritative.
+    The canonical frame contains [version, symbols, matrix], with strings
+    only in symbols and exactly one nested array per matrix row. This is a
+    conservative lexical resource guard, not a replacement JSON parser.
     """
     if len(raw) <= 128_000:
         return
     depth = 0
+    section = None
     root_commas = 0
+    symbols_commas = 0
+    matrix_commas = 0
+    row_commas = 0
+    matrix_rows = 0
     in_string = False
     escaped = False
-    in_matrix = False
-    rows = 0
     for byte in raw:
         if in_string:
             if escaped:
                 escaped = False
-            elif byte == 92:  # backslash
+            elif byte == 92:
                 escaped = True
-            elif byte == 34:  # quote
+            elif byte == 34:
                 in_string = False
             continue
-        if byte == 34:  # quote
+        if byte == 34:
             in_string = True
-        elif byte == 91:  # [
-            if depth == 1 and root_commas == 2:
-                in_matrix = True
+        elif byte == 91:
             depth += 1
-        elif byte == 93:  # ]
-            if in_matrix and depth == 2:
-                return
+            if depth > 3:
+                raise ValueError("JSON nesting exceeds canonical structure")
+            if depth == 2:
+                if root_commas == 1:
+                    section = "symbols"
+                elif root_commas == 2:
+                    section = "matrix"
+                else:
+                    raise ValueError("invalid root array")
+            elif depth == 3:
+                if section != "matrix":
+                    raise ValueError("invalid nested array")
+                matrix_rows += 1
+                if matrix_rows > MAX_RECORDS:
+                    raise ValueError("matrix exceeds record limit")
+        elif byte == 93:
+            if depth == 0:
+                raise ValueError("unbalanced JSON")
+            if depth == 2:
+                section = None
             depth -= 1
-        elif byte == 44:  # comma
+        elif byte in (123, 125):
+            raise ValueError("noncanonical JSON object")
+        elif byte == 44:
             if depth == 1:
                 root_commas += 1
-            elif in_matrix and depth == 2:
-                rows += 1
-                if rows >= MAX_RECORDS:
+                if root_commas > 2:
+                    raise ValueError("invalid root element count")
+            elif depth == 2 and section == "symbols":
+                symbols_commas += 1
+                if symbols_commas >= MAX_SYMBOLS:
+                    raise ValueError("symbol table exceeds limit")
+            elif depth == 2 and section == "matrix":
+                matrix_commas += 1
+                if matrix_commas >= MAX_RECORDS:
                     raise ValueError("matrix exceeds record limit")
-
+            elif depth == 3 and section == "matrix":
+                row_commas += 1
+                if row_commas > 2 * MAX_RECORDS:
+                    raise ValueError("matrix index count exceeds limit")
+    if depth != 0 or in_string:
+        raise ValueError("unterminated JSON")
 
 def validate(records):
     if not isinstance(records, list) or len(records) > MAX_RECORDS:
@@ -103,8 +135,13 @@ def decode(payload):
     if hashlib.sha256(raw).digest() != payload[8:40]:
         raise ValueError("integrity check failed")
     try:
-        _preflight_matrix_rows(raw)
-        version, symbols, matrix = json.loads(raw)
+        # Reject alternate UTF-16/32 JSON and NUL-bearing frames before
+        # materializing parser objects; the structural guard assumes UTF-8.
+        if b"\x00" in raw:
+            raise ValueError("NUL byte in canonical UTF-8 frame")
+        text = raw.decode("utf-8")
+        _preflight_structure(raw)
+        version, symbols, matrix = json.loads(text)
         if type(version) is not int or version != 1:
             raise ValueError("invalid version")
         if not isinstance(symbols, list) or len(symbols) > 3 * MAX_RECORDS:
@@ -122,7 +159,7 @@ def decode(payload):
         if encode(rows) != payload:
             raise ValueError("noncanonical payload")
         return rows
-    except (ValueError, TypeError, IndexError, KeyError, RecursionError, OverflowError) as exc:
+    except (ValueError, TypeError, IndexError, KeyError, RecursionError, OverflowError, UnicodeError) as exc:
         raise ValueError("invalid semantic encoding") from exc
 
 def benchmark(records):
