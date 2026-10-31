@@ -86,6 +86,51 @@ def detokenize(tokens, merges):
     return b"".join(vocabulary[token] for token in tokens)
 
 
+
+MAX_PACKED_FRAME_BYTES = 8_000_000
+
+
+def read_merge_table(raw):
+    """Restore a bounded, structurally valid train-only merge table."""
+    if type(raw) is not bytes or len(raw) % 4 or len(raw) > 4 * MAX_MERGES:
+        raise ValueError("invalid serialized merge table")
+    merges = []
+    for (left, right) in struct.iter_unpack(">HH", raw):
+        upper = 256 + len(merges)
+        if left >= upper or right >= upper:
+            raise ValueError("forward reference in merge table")
+        merges.append((left, right))
+    return tuple(merges)
+
+
+def decode_packed_tokens(compressed, merges):
+    """Decode the actual zlib-compressed uint16 stream, not in-memory tokens.
+
+    Fail closed on oversized expansion, truncated/concatenated frames,
+    trailing bytes, odd byte counts, and invalid learned token IDs.
+    This is an experiment decoder, not an authenticated wire protocol.
+    """
+    if type(compressed) is not bytes:
+        raise ValueError("compressed token stream must be bytes")
+    # zlib compressBound(MAX_PACKED_FRAME_BYTES) from the zlib manual.
+    limit = MAX_PACKED_FRAME_BYTES
+    compressed_limit = limit + (limit >> 12) + (limit >> 14) + (limit >> 25) + 13
+    if len(compressed) > compressed_limit:
+        raise ValueError("compressed token frame exceeds limit")
+    try:
+        decompressor = zlib.decompressobj()
+        packed = decompressor.decompress(compressed, limit + 1)
+    except zlib.error as exc:
+        raise ValueError("invalid compressed token frame") from exc
+    if (len(packed) > limit or not decompressor.eof
+            or decompressor.unconsumed_tail or decompressor.unused_data):
+        raise ValueError("invalid or oversized compressed token frame")
+    if len(packed) % 2:
+        raise ValueError("odd-length packed token frame")
+    tokens = [item[0] for item in struct.iter_unpack(">H", packed)]
+    return detokenize(tokens, merges)
+
+
 def _mission(record):
     edges = [edge for edge in record["event"]["payload"]["graph_mutations"]
              if edge["op"] == "add_edge" and edge["edge_type"] == "CONTAINS"]
@@ -116,6 +161,9 @@ def run_probe(count=128, max_merges=64):
     packed = struct.pack(">" + "H" * len(tokens), *tokens)
     model_bytes = b"".join(struct.pack(">HH", *pair) for pair in merges)
     encoded = zlib.compress(packed, level=9)
+    restored_merges = read_merge_table(model_bytes)
+    if restored_merges != merges or decode_packed_tokens(encoded, restored_merges) != heldout:
+        raise AssertionError("serialized held-out tokenizer frame is not reversible")
     zlib_baseline = zlib.compress(heldout, level=9)
     return {
         "protocol": "vsg1_synthetic_train_only_bpe_probe_v1",
@@ -140,11 +188,14 @@ def run_probe(count=128, max_merges=64):
         "merge_table_bytes": len(model_bytes),
         "bpe_total_bytes_including_model": len(encoded) + len(model_bytes),
         "exact_heldout_recovery": True,
+        "serialized_frame_recovery_verified": True,
         "limitations": [
             "Synthetic mission-disjoint events only; not a real-world benchmark",
             "Byte-pair vocabulary is learned tokenization, NOT learned semantics",
             "Byte-token count is not a comparison to a production LLM tokenizer",
             "16-bit token stream is compressed with zlib; framing not production-ready",
+            "Serialized model and compressed uint16 frame are now decoded end-to-end",
+            "Experimental decoder has size/integrity checks but no authentication",
             "Model overhead is counted; no inference accuracy, latency or energy measured",
             "Original full Chronos chain verified before split; subsets are not standalone chains",
         ],
