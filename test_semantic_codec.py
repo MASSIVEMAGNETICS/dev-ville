@@ -38,6 +38,14 @@ class CodecTests(unittest.TestCase):
                          separators=(",", ":"), allow_nan=False).encode("utf-8")
         return MAGIC + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
 
+    def test_deeply_nested_json_fails_closed(self):
+        # Well below MAX_BYTES, but deep enough to exceed CPython JSON
+        # decoder recursion limits. The public API must raise ValueError.
+        raw = b"[1,[]," + b"[" * 12000 + b"0" + b"]" * 12000 + b"]"
+        frame = MAGIC + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
+        with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
+            decode(frame)
+
     def test_invalid_unicode_rejected_before_serialization(self):
         rows = [{"subject": "\ud800", "predicate": "observed", "object": "x"}]
         with self.assertRaises(ValueError):
