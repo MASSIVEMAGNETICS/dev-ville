@@ -18,6 +18,49 @@ MAX_FRAME_BYTES = 40 + _compress_bound(MAX_BYTES)
 def _json(obj):
     return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
+def _preflight_matrix_rows(raw):
+    """Reject oversized matrix arrays before json.loads materializes Python rows.
+
+    This lexical scan is deliberately not a JSON parser: it only counts the
+    third top-level array's entries, ignoring quoted strings and escapes.
+    The JSON parser and strict schema validation remain authoritative.
+    """
+    if len(raw) <= 128_000:
+        return
+    depth = 0
+    root_commas = 0
+    in_string = False
+    escaped = False
+    in_matrix = False
+    rows = 0
+    for byte in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == 92:  # backslash
+                escaped = True
+            elif byte == 34:  # quote
+                in_string = False
+            continue
+        if byte == 34:  # quote
+            in_string = True
+        elif byte == 91:  # [
+            if depth == 1 and root_commas == 2:
+                in_matrix = True
+            depth += 1
+        elif byte == 93:  # ]
+            if in_matrix and depth == 2:
+                return
+            depth -= 1
+        elif byte == 44:  # comma
+            if depth == 1:
+                root_commas += 1
+            elif in_matrix and depth == 2:
+                rows += 1
+                if rows >= MAX_RECORDS:
+                    raise ValueError("matrix exceeds record limit")
+
+
 def validate(records):
     if not isinstance(records, list) or len(records) > MAX_RECORDS:
         raise ValueError("records must be a list of at most 100000 triples")
@@ -60,6 +103,7 @@ def decode(payload):
     if hashlib.sha256(raw).digest() != payload[8:40]:
         raise ValueError("integrity check failed")
     try:
+        _preflight_matrix_rows(raw)
         version, symbols, matrix = json.loads(raw)
         if type(version) is not int or version != 1:
             raise ValueError("invalid version")
