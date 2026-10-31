@@ -85,7 +85,7 @@ def verify_records(records, *, expected_chain_hash=None):
     try:
         ledger.restore([item["event"] for item in records],
                        [item["receipt"] for item in records])
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, UnicodeError, RecursionError, OverflowError) as exc:
         raise ValueError("Chronos provenance or receipt verification failed") from exc
     if not ledger.verify_chain():
         raise ValueError("Chronos chain verification failed")
