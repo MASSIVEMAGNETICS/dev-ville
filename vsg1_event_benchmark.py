@@ -17,7 +17,8 @@ import time
 import tracemalloc
 import zlib
 
-from semantic_codec import decode as vsg1_decode, encode as vsg1_encode
+from semantic_codec import (MAX_BYTES, MAX_RECORDS, decode as vsg1_decode,
+                            encode as vsg1_encode, validate as validate_triples)
 from trace0_chronos import ChronosLedger, Trace0Observer
 
 SOURCE_REPO = "MASSIVEMAGNETICS/dev-ville"
@@ -25,7 +26,7 @@ SOURCE_COMMIT = "f4d340c48d6b23af6bc708c45ece7872499c3273"
 PREDICATE = "chronos_record_json"
 MAX_FIXTURE_RECORDS = 1024
 # Keep benchmark baseline decoders bounded to the VSG1 raw-frame limit.
-MAX_JSON_BYTES = 8_000_000
+MAX_JSON_BYTES = MAX_BYTES
 MAX_ZLIB_BYTES = (MAX_JSON_BYTES + (MAX_JSON_BYTES >> 12)
                   + (MAX_JSON_BYTES >> 14) + (MAX_JSON_BYTES >> 25) + 13)
 
@@ -172,13 +173,21 @@ def to_triples(records):
 
 
 def from_triples(triples, *, expected_chain_hash=None):
-    if not isinstance(triples, list):
-        raise ValueError("triples must be a list")
+    """Bound direct-adapter inputs before parsing any embedded event JSON.
+
+    The wire decoder already bounds its own frames. Direct Python callers
+    must not bypass those limits with unbounded lists or oversized strings.
+    """
+    if not isinstance(triples, list) or len(triples) > MAX_RECORDS:
+        raise ValueError("triples must be a bounded list")
     records = []
+    input_bytes = 0
     for row in triples:
-        if not isinstance(row, dict) or set(row) != {"subject", "predicate", "object"}:
-            raise ValueError("invalid triple")
-        if row["predicate"] != PREDICATE or not isinstance(row["subject"], str) or not isinstance(row["object"], str):
+        validate_triples([row])
+        input_bytes += sum(len(value.encode("utf-8")) for value in row.values())
+        if input_bytes > MAX_JSON_BYTES:
+            raise ValueError("direct Chronos triple input exceeds byte limit")
+        if row["predicate"] != PREDICATE:
             raise ValueError("invalid Chronos triple type")
         try:
             record = json.loads(row["object"], parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
