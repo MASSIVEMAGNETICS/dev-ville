@@ -82,7 +82,7 @@ class CodecTests(unittest.TestCase):
         raw = b'[1,["x"],[' + b'[0,0,0],' * MAX_RECORDS + b'[0,0,0]]]'
         frame = MAGIC + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
         with patch("semantic_codec.json.loads", side_effect=AssertionError("JSON object allocation attempted")):
-            with self.assertRaisesRegex(ValueError, "matrix exceeds record limit"):
+            with self.assertRaisesRegex(ValueError, "invalid semantic encoding"):
                 decode(frame)
 
     def test_matrix_preflight_preserves_escaped_symbols(self):
