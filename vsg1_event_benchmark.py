@@ -186,7 +186,7 @@ def from_triples(triples, *, expected_chain_hash=None):
                 raise ValueError("noncanonical embedded record")
             if record["event"]["event_id"] != row["subject"]:
                 raise ValueError("event identity mismatch")
-        except (ValueError, TypeError, KeyError, UnicodeError) as exc:
+        except (ValueError, TypeError, KeyError, UnicodeError, RecursionError, OverflowError) as exc:
             raise ValueError("invalid embedded Chronos record") from exc
         records.append(record)
     return verify_records(records, expected_chain_hash=expected_chain_hash)
