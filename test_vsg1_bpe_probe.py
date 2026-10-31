@@ -1,6 +1,7 @@
 """Regression tests for the train-only synthetic BPE evaluation probe."""
 import unittest
 import struct
+import tracemalloc
 import zlib
 
 from vsg1_bpe_probe import (
@@ -82,6 +83,40 @@ class SyntheticBPEProbeTests(unittest.TestCase):
         oversized = zlib.compress(b"\x00" * 8_000_001, level=9)
         with self.assertRaises(ValueError):
             decode_packed_tokens(oversized, ())
+
+    def test_unused_exponential_merge_symbols_do_not_allocate_megabytes(self):
+        # The final unused symbol expands to 2 MiB. Eager vocabulary
+        # construction would allocate several MiB before returning b"B".
+        merges = tuple((65 if i == 0 else 255 + i,
+                        65 if i == 0 else 255 + i) for i in range(21))
+        tracemalloc.start()
+        try:
+            self.assertEqual(detokenize([66], merges), b"B")
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 512_000)
+
+    def test_oversized_expansion_rejected_before_allocation(self):
+        merges = tuple((65 if i == 0 else 255 + i,
+                        65 if i == 0 else 255 + i) for i in range(21))
+        tracemalloc.start()
+        try:
+            with self.assertRaises(ValueError):
+                detokenize([276] * 4, merges)  # 8,388,608 decoded bytes
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 512_000)
+
+    def test_single_use_token_iterators_and_oversized_models_rejected(self):
+        # A generator was silently consumed by the validation pass and
+        # incorrectly returned empty bytes instead of the original token.
+        with self.assertRaises(ValueError):
+            detokenize((token for token in [65]), ())
+        with self.assertRaises(ValueError):
+            detokenize([65], ((65, 65),) * 129)
+        self.assertEqual(detokenize((65, 66), ()), b"AB")
 
     def test_invalid_group_count_rejected(self):
         with self.assertRaises(ValueError):
