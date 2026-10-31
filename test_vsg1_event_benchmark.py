@@ -30,6 +30,26 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             from_triples(rows)
 
+    def test_deep_python_chronos_payload_fails_closed(self):
+        # Direct Python callers bypass the JSON parser's nesting guard.
+        # The restore/identity-hash path must not leak RecursionError.
+        nested = {"leaf": True}
+        for _ in range(1200):
+            nested = {"child": nested}
+        records = fixture_records(1)
+        records[0]["event"]["payload"] = nested
+        with self.assertRaisesRegex(ValueError, "Chronos provenance or receipt"):
+            verify_records(records)
+
+    def test_cyclic_python_chronos_payload_fails_closed(self):
+        # Cyclic dicts cannot be serialized but can enter via a direct API.
+        cycle = {}
+        cycle["self"] = cycle
+        records = fixture_records(1)
+        records[0]["event"]["payload"] = cycle
+        with self.assertRaisesRegex(ValueError, "Chronos provenance or receipt"):
+            verify_records(records)
+
     def test_receipt_tampering_rejected(self):
         records = fixture_records(3)
         records[0]["receipt"]["chain_hash"] = "0" * 64
