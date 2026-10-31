@@ -53,7 +53,7 @@ class VSG1EventBenchmarkTests(unittest.TestCase):
         row = to_triples(fixture_records(1))[0]
         for field, value in (("object", "x" * 10001),
                              ("subject", "s" * 10001),
-                             ("object", "\\ud800")):
+                             ("object", chr(0xD800))):
             invalid = dict(row)
             invalid[field] = value
             with self.subTest(field=field, length=len(value)):
