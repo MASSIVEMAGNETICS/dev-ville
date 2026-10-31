@@ -118,6 +118,26 @@ class SyntheticBPEProbeTests(unittest.TestCase):
             detokenize([65], ((65, 65),) * 129)
         self.assertEqual(detokenize((65, 66), ()), b"AB")
 
+    def test_large_packed_stream_has_bounded_python_allocations(self):
+        # 1,000,000 uint16 byte tokens previously became a million-element
+        # Python list before detokenization. The packed frame is repeatable.
+        frame = zlib.compress(b"\\x00A" * 1_000_000, level=9)
+        tracemalloc.start()
+        try:
+            decoded = decode_packed_tokens(frame, ())
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(decoded, b"A" * 1_000_000)
+        self.assertLess(peak, 9_000_000)
+
+    def test_streamed_packed_tokens_match_reference_with_learned_merges(self):
+        merges = train_bpe([b"banana banana", b"banana bandana"], 12)
+        raw = (b"banana bandana!\\x00\\xff" * 1000)
+        tokens = tokenize(raw, merges)
+        packed = b"".join(struct.pack(">H", token) for token in tokens)
+        self.assertEqual(decode_packed_tokens(zlib.compress(packed), merges), raw)
+
     def test_invalid_group_count_rejected(self):
         with self.assertRaises(ValueError):
             run_probe(16, 8)
