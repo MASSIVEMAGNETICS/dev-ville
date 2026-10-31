@@ -123,3 +123,17 @@ head must be supplied from a trusted, independently retained checkpoint or
 signed receipt. A self-contained hash chain alone cannot prove who authored
 it or prevent wholesale rewriting. This does not change Chronos authority,
 execute actions, or authenticate real production data.
+
+## Direct Chronos adapter input bounds
+
+The public `from_triples` adapter now validates **each** input triple before
+calling `json.loads`. It rejects more than 100,000 triples, invalid schemas,
+non-UTF-8 strings, any field longer than 10,000 Unicode code points, and
+aggregate UTF-8 triple-field content over 8,000,000 bytes. The limits are
+aligned with the VSG1 wire codec's record and uncompressed-byte ceilings,
+though wire framing adds separate overhead. This closes an earlier direct
+Python-call bypass of the wire decoder's resource bounds. Tests cover
+oversized fields, lone surrogates, excessive record counts, aggregate bytes,
+and the existing deeply nested input. These checks bound *accepted* input;
+they do not prevent a caller from allocating an oversized list or string
+before invoking the adapter, nor prove immunity to all resource exhaustion.
