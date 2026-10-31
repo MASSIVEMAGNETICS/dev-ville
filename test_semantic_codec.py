@@ -29,6 +29,41 @@ class CodecTests(unittest.TestCase):
     def test_trailing_bytes(self):
         with self.assertRaises(ValueError):
             decode(encode(self.rows) + b"x")
+    def test_trailing_bomb_rejected_before_zlib(self):
+        # Review P2: small canonical frame plus large attacker-controlled
+        # suffix must be rejected before a slice or zlib unused_data copy.
+        frame = encode([])
+        with patch("semantic_codec.zlib.decompressobj",
+                   side_effect=AssertionError("zlib allocation reached")):
+            with self.assertRaisesRegex(ValueError, "compressed payload exceeds declared-size bound"):
+                decode(frame + b"x" * 100_000)
+
+    def test_global_compressed_frame_cap_before_zlib(self):
+        # Declare the maximum allowed decoded size and exceed the global
+        # compressed cap, without creating an 8 MB test fixture.
+        from semantic_codec import MAX_BYTES, MAX_FRAME_BYTES, _compress_bound
+        self.assertEqual(MAX_FRAME_BYTES, 40 + _compress_bound(MAX_BYTES))
+        frame = bytearray(encode([]))
+        frame[4:8] = struct.pack(">I", MAX_BYTES)
+        with patch("semantic_codec.MAX_FRAME_BYTES", len(frame) + 10):
+            with patch("semantic_codec.zlib.decompressobj",
+                       side_effect=AssertionError("zlib allocation reached")):
+                with self.assertRaisesRegex(ValueError, "payload exceeds limit"):
+                    decode(bytes(frame) + b"x" * 11)
+
+    def test_high_entropy_canonical_frame_within_compress_bound(self):
+        # A valid high-entropy symbol table must not be rejected by the
+        # conservative zlib compressBound calculation.
+        rows = [{"subject": hashlib.sha256(str(i).encode()).hexdigest(),
+                 "predicate": "observed",
+                 "object": hashlib.sha256(("event" + str(i)).encode()).hexdigest()}
+                for i in range(2000)]
+        frame = encode(rows)
+        from semantic_codec import _compress_bound
+        raw = zlib.decompress(frame[40:])
+        self.assertLessEqual(len(frame) - 40, _compress_bound(len(raw)))
+        self.assertEqual(decode(frame), rows)
+
     def test_reject_oversized_matrix_before_record_expansion(self):
         # Valid digest and length: small compressed input with 100001 triples.
         raw = b'[1,["x"],[' + b'[0,0,0],' * 100000 + b'[0,0,0]]]'
