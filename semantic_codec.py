@@ -14,6 +14,12 @@ def _json(obj):
 MAX_RECORDS = 100_000
 MAX_SYMBOLS = 3 * MAX_RECORDS
 
+def _compress_bound(size):
+    """zlib compressBound upper bound for a size-byte input."""
+    return size + (size >> 12) + (size >> 14) + (size >> 25) + 13
+
+MAX_FRAME_BYTES = 40 + _compress_bound(MAX_BYTES)
+
 def _preflight_structure(raw):
     """Bound JSON container allocation before json.loads on untrusted frames.
 
@@ -116,8 +122,13 @@ def decode(payload):
     if not isinstance(payload, bytes) or len(payload) < 40 or payload[:4] != MAGIC:
         raise ValueError("invalid codec payload")
     length = struct.unpack(">I", payload[4:8])[0]
-    if length > MAX_BYTES:
+    # Check both the global and declared-length compressed bounds before
+    # slicing or calling zlib: payload[40:] and unused_data otherwise copy
+    # attacker-controlled trailing bytes into additional Python allocations.
+    if length < 1 or length > MAX_BYTES or len(payload) > MAX_FRAME_BYTES:
         raise ValueError("payload exceeds limit")
+    if len(payload) - 40 > _compress_bound(length):
+        raise ValueError("compressed payload exceeds declared-size bound")
     decompressor = zlib.decompressobj()
     try:
         raw = decompressor.decompress(payload[40:], length + 1)
