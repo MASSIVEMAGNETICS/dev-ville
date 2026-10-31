@@ -206,3 +206,28 @@ through learned merges. The reported allocation ceiling applies only to the
 selected fixture and Python allocations, not process RSS, native zlib memory,
 or arbitrary attacker-controlled input. No semantic or compression gain is
 claimed. The canonical Chronos event store remains unchanged.
+
+### Frozen BPE versus strict zlib timing and memory baseline
+
+The synthetic held-out BPE probe now optionally measures **encode and decode**
+median wall time, median process CPU time, and peak Python `tracemalloc`
+allocations over 1–10 repetitions. CI uses three repetitions and includes the
+measurements in the per-Python BPE JSON artifact:
+
+```sh
+python vsg1_bpe_probe.py --records 128 --merges 64 --timing-repeats 3
+```
+
+Both representations encode the **same** held-out canonical JSON bytes.
+`zlib_json_9` compresses those bytes at level 9 and uses a strict bounded
+single-frame decompressor; `bpe_uint16_zlib_9` tokenizes with the *frozen
+training-only* vocabulary, packs big-endian uint16 IDs, compresses at level 9,
+and fully decodes the packed stream back into the exact held-out bytes.
+The BPE size includes its serialized merge-table overhead, but model loading
+and training are **excluded from timing**. The timing comparison also excludes
+corpus generation and Chronos receipt-chain verification, unlike the separate
+full-event codec benchmark. Neither timing path measures semantic task accuracy,
+LLM inference, whole-process RSS, native zlib allocations, or energy. Values
+are hardware- and interpreter-dependent; use same-run results only.
+This does not establish a token successor, learned semantics, or a compression
+advantage. No canonical Chronos events are modified.
