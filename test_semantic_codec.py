@@ -2,6 +2,7 @@ import hashlib
 import json
 import struct
 import unittest
+from unittest.mock import patch
 import zlib
 from semantic_codec import MAGIC, MAX_FRAME_BYTES, benchmark, decode, encode
 
@@ -72,6 +73,23 @@ class CodecTests(unittest.TestCase):
     def test_oversized_matrix_rejected_before_row_materialization(self):
         with self.assertRaises(ValueError):
             decode(self._frame([1, ["x"], [[0, 0, 0]] * 100001]))
+
+    def test_high_compression_matrix_bomb_preflight(self):
+        # Regression for the independent PR #36 P2 finding: a ~12 KiB
+        # compressed frame could expand into almost a million Python dicts.
+        # The stacked decoder must reject before even calling json.loads.
+        from semantic_codec import MAX_RECORDS
+        raw = b'[1,["x"],[' + b'[0,0,0],' * MAX_RECORDS + b'[0,0,0]]]'
+        frame = MAGIC + struct.pack(">I", len(raw)) + hashlib.sha256(raw).digest() + zlib.compress(raw, 9)
+        with patch("semantic_codec.json.loads", side_effect=AssertionError("JSON object allocation attempted")):
+            with self.assertRaisesRegex(ValueError, "matrix exceeds record limit"):
+                decode(frame)
+
+    def test_matrix_preflight_preserves_escaped_symbols(self):
+        # Force the large-input preflight on valid canonical data containing
+        # JSON punctuation and escaped quotes inside a symbol.
+        rows = [{"subject": 'x[\\\\\\",],', "predicate": "observed", "object": "ok"} for _ in range(20000)]
+        self.assertEqual(decode(encode(rows)), rows)
 
     def test_bool_index_rejected(self):
         with self.assertRaises(ValueError):
