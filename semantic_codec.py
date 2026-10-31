@@ -49,7 +49,8 @@ def decode(payload):
         version, symbols, matrix = json.loads(raw)
         if version != 1 or not isinstance(symbols, list) or symbols != sorted(set(symbols)):
             raise ValueError("invalid symbol table")
-        if not isinstance(matrix, list):
+        if not isinstance(matrix, list) or len(matrix) > 100000:
+            # Reject oversized matrices before allocating one dict per triple.
             raise ValueError("invalid matrix")
         if any(not isinstance(triple, list) or len(triple) != 3 or any(not isinstance(i, int) or isinstance(i, bool) or i < 0 or i >= len(symbols) for i in triple) for triple in matrix):
             raise ValueError("invalid matrix indexes")
