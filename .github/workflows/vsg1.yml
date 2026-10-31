@@ -4,12 +4,22 @@ on:
     paths:
       - "semantic_codec.py"
       - "test_semantic_codec.py"
+      - "vsg1_event_benchmark.py"
+      - "test_vsg1_event_benchmark.py"
+      - "vsg1_bpe_probe.py"
+      - "test_vsg1_bpe_probe.py"
+      - "docs/VSG1_EVENT_BENCHMARK.md"
       - ".github/workflows/vsg1.yml"
   push:
     branches: [main]
     paths:
       - "semantic_codec.py"
       - "test_semantic_codec.py"
+      - "vsg1_event_benchmark.py"
+      - "test_vsg1_event_benchmark.py"
+      - "vsg1_bpe_probe.py"
+      - "test_vsg1_bpe_probe.py"
+      - "docs/VSG1_EVENT_BENCHMARK.md"
       - ".github/workflows/vsg1.yml"
 jobs:
   codec:
@@ -23,5 +33,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run codec tests
-        run: python -m unittest -v test_semantic_codec.py
+      - name: Run codec and Chronos adapter tests
+        run: python -m unittest -v test_semantic_codec.py test_vsg1_event_benchmark.py test_vsg1_bpe_probe.py
+      - name: Measure synthetic Chronos event corpus
+        run: python vsg1_event_benchmark.py --records 128 --repeats 3 --output vsg1-benchmark-report.json
+      - name: Probe train-only synthetic BPE held-out missions
+        run: python vsg1_bpe_probe.py --records 128 --merges 64 --timing-repeats 3 | tee vsg1-bpe-probe-report.json
+      - name: Preserve benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsg1-benchmark-py${{ matrix.python-version }}
+          path: |
+            vsg1-benchmark-report.json
+            vsg1-bpe-probe-report.json
+          if-no-files-found: error
