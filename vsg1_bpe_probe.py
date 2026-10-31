@@ -67,23 +67,46 @@ def tokenize(raw, merges):
 
 
 def detokenize(tokens, merges):
-    """Reverse the learned merges, rejecting invalid references and expansion."""
-    vocabulary = [bytes([value]) for value in range(256)]
+    """Preflight expansion length; materialize only symbols in the token stream.
+
+    Avoid eagerly building potentially megabyte-sized *unused* vocabulary
+    entries from a valid but adversarial merge table.
+    """
+    if type(merges) not in (tuple, list) or len(merges) > MAX_MERGES:
+        raise ValueError("invalid learned merge table")
     lengths = [1] * 256
     for offset, pair in enumerate(merges):
         if (not isinstance(pair, tuple) or len(pair) != 2
                 or any(type(i) is not int or i < 0 or i >= 256 + offset for i in pair)):
             raise ValueError("invalid learned merge table")
         a, b = pair
-        lengths.append(lengths[a] + lengths[b])
-        if lengths[-1] > 8_000_000:
+        expanded_length = lengths[a] + lengths[b]
+        if expanded_length > 8_000_000:
             raise ValueError("token expansion exceeds limit")
-        vocabulary.append(vocabulary[a] + vocabulary[b])
-    if any(type(token) is not int or token < 0 or token >= len(vocabulary) for token in tokens):
-        raise ValueError("invalid token id")
-    if sum(lengths[token] for token in tokens) > 8_000_000:
-        raise ValueError("decoded data exceeds limit")
-    return b"".join(vocabulary[token] for token in tokens)
+        lengths.append(expanded_length)
+    # Iterators are single-use; checking them before expansion could silently
+    # consume them and return empty output. Require a stable finite sequence.
+    if type(tokens) not in (list, tuple):
+        raise ValueError("tokens must be a list or tuple")
+    total = 0
+    for token in tokens:
+        if type(token) is not int or token < 0 or token >= len(lengths):
+            raise ValueError("invalid token id")
+        total += lengths[token]
+        if total > 8_000_000:
+            raise ValueError("decoded data exceeds limit")
+    output = bytearray()
+    for token in tokens:
+        stack = [token]
+        while stack:
+            symbol = stack.pop()
+            if symbol < 256:
+                output.append(symbol)
+            else:
+                left, right = merges[symbol - 256]
+                stack.append(right)
+                stack.append(left)
+    return bytes(output)
 
 
 
