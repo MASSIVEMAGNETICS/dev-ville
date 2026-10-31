@@ -194,3 +194,15 @@ a Python allocation ceiling, and rejection of single-use token generators.
 The memory test uses `tracemalloc` (Python allocations only); it is not a
 whole-process RSS or native-zlib memory guarantee. This does not authenticate
 the frame, replace Chronos, or establish semantic accuracy.
+
+### Packed-token streaming memory gate
+
+The experimental BPE zlib decoder now iterates over the immutable big-endian
+uint16 frame twice (validation and output) rather than building a Python list
+of every token ID. The existing 8 MB compressed-frame expansion limit and
+8 MB decoded-byte preflight remain in place. Two regression tests exercise a
+million-token frame with a `tracemalloc` peak ceiling and exact recovery
+through learned merges. The reported allocation ceiling applies only to the
+selected fixture and Python allocations, not process RSS, native zlib memory,
+or arbitrary attacker-controlled input. No semantic or compression gain is
+claimed. The canonical Chronos event store remains unchanged.
