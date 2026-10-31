@@ -86,8 +86,8 @@ def detokenize(tokens, merges):
         lengths.append(expanded_length)
     # Iterators are single-use; checking them before expansion could silently
     # consume them and return empty output. Require a stable finite sequence.
-    if type(tokens) not in (list, tuple):
-        raise ValueError("tokens must be a list or tuple")
+    if type(tokens) not in (list, tuple, _PackedTokenSequence):
+        raise ValueError("tokens must be a repeatable bounded sequence")
     total = 0
     for token in tokens:
         if type(token) is not int or token < 0 or token >= len(lengths):
@@ -108,6 +108,23 @@ def detokenize(tokens, merges):
                 stack.append(left)
     return bytes(output)
 
+
+
+class _PackedTokenSequence:
+    """Repeatable, allocation-light view of big-endian uint16 packed tokens.
+
+    The decompressed byte frame remains immutable and owned by this object.
+    Repeated iteration supports the detokenizer's validation and decode passes
+    without materializing millions of Python integer objects in a list.
+    """
+
+    def __init__(self, packed):
+        if type(packed) is not bytes or len(packed) % 2:
+            raise ValueError("invalid packed token sequence")
+        self._packed = packed
+
+    def __iter__(self):
+        return (token for (token,) in struct.iter_unpack(">H", self._packed))
 
 
 MAX_PACKED_FRAME_BYTES = 8_000_000
@@ -150,8 +167,7 @@ def decode_packed_tokens(compressed, merges):
         raise ValueError("invalid or oversized compressed token frame")
     if len(packed) % 2:
         raise ValueError("odd-length packed token frame")
-    tokens = [item[0] for item in struct.iter_unpack(">H", packed)]
-    return detokenize(tokens, merges)
+    return detokenize(_PackedTokenSequence(packed), merges)
 
 
 def _mission(record):
