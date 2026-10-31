@@ -54,7 +54,7 @@ class SyntheticBPEProbeTests(unittest.TestCase):
 
     def test_serialized_frame_round_trip(self):
         merges = train_bpe([b"banana banana", b"bandana banana"], 12)
-        raw = b"banana bandana!\\x00\\xff"
+        raw = b"banana bandana!\x00\xff"
         model = b"".join(struct.pack(">HH", *pair) for pair in merges)
         restored_model = read_merge_table(model)
         self.assertEqual(restored_model, merges)
@@ -63,23 +63,23 @@ class SyntheticBPEProbeTests(unittest.TestCase):
         self.assertEqual(decode_packed_tokens(zlib.compress(packed), restored_model), raw)
 
     def test_reject_invalid_serialized_model(self):
-        for raw in (None, "not bytes", b"\\x00", b"\\x01\\x00\\x00\\x00",
-                    b"\\x00" * 516):
+        for raw in (None, "not bytes", b"\x00", b"\x01\x00\x00\x00",
+                    b"\x00" * 516):
             with self.subTest(raw=repr(raw)[:30]), self.assertRaises(ValueError):
                 read_merge_table(raw)
 
     def test_reject_truncated_trailing_and_invalid_token_frames(self):
-        valid = zlib.compress(b"\\x00\\x01\\x00\\x02")
+        valid = zlib.compress(b"\x00\x01\x00\x02")
         invalid = (valid[:-1], valid + b"garbage", valid + valid,
-                   zlib.compress(b"\\x00"),
-                   zlib.compress(b"\\x02\\x00"),
+                   zlib.compress(b"\x00"),
+                   zlib.compress(b"\x02\x00"),
                    b"not zlib", None)
         for frame in invalid:
             with self.subTest(frame=repr(frame)[:30]), self.assertRaises(ValueError):
                 decode_packed_tokens(frame, ())
 
     def test_reject_decompression_expansion_bomb(self):
-        oversized = zlib.compress(b"\\x00" * 8_000_001, level=9)
+        oversized = zlib.compress(b"\x00" * 8_000_001, level=9)
         with self.assertRaises(ValueError):
             decode_packed_tokens(oversized, ())
 
