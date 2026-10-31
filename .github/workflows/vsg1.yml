@@ -38,7 +38,7 @@ jobs:
       - name: Measure synthetic Chronos event corpus
         run: python vsg1_event_benchmark.py --records 128 --repeats 3 --output vsg1-benchmark-report.json
       - name: Probe train-only synthetic BPE held-out missions
-        run: python vsg1_bpe_probe.py --records 128 --merges 64 > vsg1-bpe-probe-report.json
+        run: python vsg1_bpe_probe.py --records 128 --merges 64 | tee vsg1-bpe-probe-report.json
       - name: Preserve benchmark report
         uses: actions/upload-artifact@v4
         with:
