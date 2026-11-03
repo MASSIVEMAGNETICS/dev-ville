@@ -101,5 +101,48 @@ class ChronosPersistenceTests(unittest.TestCase):
         self.assertTrue(ledger.verify_chain())
 
 
+    def test_unterminated_but_valid_json_record_is_rejected_without_rewrite(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            observe(ChronosLedger(str(path)))
+            path.write_bytes(path.read_bytes()[:-1])  # simulate lost final newline
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "unterminated record"):
+                ChronosLedger(str(path))
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_blank_record_is_not_silently_skipped(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            observe(ChronosLedger(str(path)))
+            with path.open("ab") as handle:
+                handle.write(b"\\n")
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "empty record at line 2"):
+                ChronosLedger(str(path))
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_partial_json_tail_fails_closed_without_truncation(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            observe(ChronosLedger(str(path)))
+            with path.open("ab") as handle:
+                handle.write(b'{"event":')
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "unterminated record"):
+                ChronosLedger(str(path))
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_complete_crlf_terminated_record_remains_readable(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            event, receipt = observe(ChronosLedger(str(path)))
+            path.write_bytes(path.read_bytes().replace(b"\\n", b"\\r\\n"))
+            replay = ChronosLedger(str(path))
+            self.assertTrue(replay.verify_chain())
+            self.assertEqual(replay.events()[0], event.to_dict())
+            self.assertEqual(replay.receipts()[0], receipt.to_dict())
+
+
 if __name__ == "__main__":
     unittest.main()
