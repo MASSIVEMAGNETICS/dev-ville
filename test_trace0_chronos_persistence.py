@@ -116,7 +116,7 @@ class ChronosPersistenceTests(unittest.TestCase):
             path = Path(root) / "chronos.jsonl"
             observe(ChronosLedger(str(path)))
             with path.open("ab") as handle:
-                handle.write(b"\\n")
+                handle.write(b"\n")
             before = path.read_bytes()
             with self.assertRaisesRegex(ValueError, "empty record at line 2"):
                 ChronosLedger(str(path))
@@ -137,7 +137,7 @@ class ChronosPersistenceTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             path = Path(root) / "chronos.jsonl"
             event, receipt = observe(ChronosLedger(str(path)))
-            path.write_bytes(path.read_bytes().replace(b"\\n", b"\\r\\n"))
+            path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
             replay = ChronosLedger(str(path))
             self.assertTrue(replay.verify_chain())
             self.assertEqual(replay.events()[0], event.to_dict())
