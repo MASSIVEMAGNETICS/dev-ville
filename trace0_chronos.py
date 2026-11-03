@@ -128,9 +128,15 @@ class ChronosLedger:
     def _load_jsonl(self) -> None:
         assert self.jsonl_path is not None
         with self._lock:
-            for line_number, line in enumerate(self.jsonl_path.read_text(encoding="utf-8").splitlines(), start=1):
+            # A crash can leave a syntactically valid JSON object without its
+            # terminating newline. Do not silently accept that ambiguous tail.
+            # Likewise, blank records must not disappear from the evidence stream.
+            raw = self.jsonl_path.read_bytes()
+            if not raw.endswith(b"\n"):
+                raise ValueError("Chronos JSONL has an unterminated record; reconcile before replay")
+            for line_number, line in enumerate(raw.decode("utf-8").splitlines(), start=1):
                 if not line.strip():
-                    continue
+                    raise ValueError(f"Chronos JSONL has an empty record at line {line_number}")
                 record = json.loads(line)
                 event = Informatron(**record["event"])
                 expected = ChronosReceipt(**record["receipt"])
