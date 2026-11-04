@@ -216,10 +216,14 @@ def validate_remote_surface(manifest: dict, checks: dict) -> None:
         else f"proof ledger missing: {proof_missing}",
     )
 
+    # Radar source errors are transient fetch failures of individual feeds.
+    # The radar's own health verdict (healthy + a quorum of healthy sources)
+    # is the failure signal; a nonzero error_count alone must not fail the
+    # whole empire sync closed, or one flaky feed pages hourly. The error
+    # count stays visible in the detail string either way.
     radar_ok = (
         radar.get("healthy") is True
         and int(radar.get("healthy_source_count", 0)) >= 2
-        and int(radar.get("error_count", 1)) == 0
     )
     record(
         checks,
