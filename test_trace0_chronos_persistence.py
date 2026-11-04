@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+import json
 from unittest.mock import MagicMock, patch
 
 from trace0_chronos import ChronosLedger, Trace0Observer
@@ -148,9 +149,9 @@ class ChronosPersistenceTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             path = Path(root) / "chronos.jsonl"
             observe(ChronosLedger(str(path)))
-            record = __import__("json").loads(path.read_text(encoding="utf-8"))
+            record = json.loads(path.read_text(encoding="utf-8"))
             record["receipt"]["chain_hash"] = "0" * 64
-            path.write_text(__import__("json").dumps(record) + "\\n", encoding="utf-8")
+            path.write_text(json.dumps(record) + "\n", encoding="utf-8")
             before = path.read_bytes()
             with self.assertRaisesRegex(ValueError, "receipt mismatch"):
                 ChronosLedger(str(path))
