@@ -6,6 +6,7 @@ on:
       - "chronos/canonical_execution.jsonl"
       - "chronos/README.md"
       - "trace0_chronos.py"
+      - "test_trace0_chronos_persistence.py"
       - ".github/workflows/canonical-execution-ledger.yml"
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - "chronos/canonical_execution.jsonl"
       - "chronos/README.md"
       - "trace0_chronos.py"
+      - "test_trace0_chronos_persistence.py"
       - ".github/workflows/canonical-execution-ledger.yml"
 
 permissions:
@@ -30,6 +32,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Verify Chronos persistence failure contracts
+        run: python -m unittest -v test_trace0_chronos_persistence.py
 
       - name: Verify Chronos replay and hash chain
         run: |

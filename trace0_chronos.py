@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import threading
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -64,6 +65,7 @@ class ChronosLedger:
         self._events: List[Informatron] = []
         self._receipts: List[ChronosReceipt] = []
         self._lock = threading.RLock()
+        self._persistence_uncertain = False
         self.jsonl_path = Path(jsonl_path) if jsonl_path else None
         if self.jsonl_path and self.jsonl_path.exists() and self.jsonl_path.stat().st_size:
             self._load_jsonl()
@@ -96,14 +98,27 @@ class ChronosLedger:
         if event.parent_event_hash != self.last_event_hash:
             raise ValueError("parent_event_hash does not match current Chronos head")
 
+        if persist and self._persistence_uncertain:
+            raise RuntimeError("Chronos append outcome uncertain; reopen ledger before retry")
+
         receipt = self._receipt_for(event, self.last_chain_hash)
+        if persist and self.jsonl_path:
+            # Do not advance the in-memory chain until the append is flushed.
+            # An I/O failure may leave a complete or partial line on disk:
+            # quarantine this instance until a fresh replay reconciles it.
+            try:
+                self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+                line = canonical_json({"event": event.to_dict(), "receipt": receipt.to_dict()}) + "\n"
+                with self.jsonl_path.open("a", encoding="utf-8") as handle:
+                    if handle.write(line) != len(line):
+                        raise OSError("short Chronos JSONL append")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except BaseException:
+                self._persistence_uncertain = True
+                raise
         self._events.append(event)
         self._receipts.append(receipt)
-
-        if persist and self.jsonl_path:
-            self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.jsonl_path.open("a", encoding="utf-8") as handle:
-                handle.write(canonical_json({"event": event.to_dict(), "receipt": receipt.to_dict()}) + "\n")
         return receipt
 
     def append(self, event: Informatron) -> ChronosReceipt:
@@ -113,9 +128,15 @@ class ChronosLedger:
     def _load_jsonl(self) -> None:
         assert self.jsonl_path is not None
         with self._lock:
-            for line_number, line in enumerate(self.jsonl_path.read_text(encoding="utf-8").splitlines(), start=1):
+            # A crash can leave a syntactically valid JSON object without its
+            # terminating newline. Do not silently accept that ambiguous tail.
+            # Likewise, blank records must not disappear from the evidence stream.
+            raw = self.jsonl_path.read_bytes()
+            if not raw.endswith(b"\n"):
+                raise ValueError("Chronos JSONL has an unterminated record; reconcile before replay")
+            for line_number, line in enumerate(raw.decode("utf-8").splitlines(), start=1):
                 if not line.strip():
-                    continue
+                    raise ValueError(f"Chronos JSONL has an empty record at line {line_number}")
                 record = json.loads(line)
                 event = Informatron(**record["event"])
                 expected = ChronosReceipt(**record["receipt"])
