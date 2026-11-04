@@ -144,5 +144,31 @@ class ChronosPersistenceTests(unittest.TestCase):
             self.assertEqual(replay.receipts()[0], receipt.to_dict())
 
 
+    def test_receipt_tampering_rejected_without_mutating_evidence(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            observe(ChronosLedger(str(path)))
+            record = __import__("json").loads(path.read_text(encoding="utf-8"))
+            record["receipt"]["chain_hash"] = "0" * 64
+            path.write_text(__import__("json").dumps(record) + "\\n", encoding="utf-8")
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "receipt mismatch"):
+                ChronosLedger(str(path))
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_valid_two_record_chain_replays_without_modification(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            ledger = ChronosLedger(str(path))
+            observe(ledger)
+            observe(ledger)
+            before = path.read_bytes()
+            restored = ChronosLedger(str(path))
+            self.assertTrue(restored.verify_chain())
+            self.assertEqual(len(restored.receipts()), 2)
+            self.assertEqual(restored.last_chain_hash, ledger.last_chain_hash)
+            self.assertEqual(path.read_bytes(), before)
+
+
 if __name__ == "__main__":
     unittest.main()
