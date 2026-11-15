@@ -12,6 +12,7 @@
   - Dev-Ville PR [#41](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/41), draft, extended by this run.
   - B Heard order-intake PR [#57](https://github.com/MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io/pull/57) and demo-asset PR [#59](https://github.com/MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io/pull/59), both draft.
 - Main website commit `447fe03186eeac203324723bb9558dc295f0659b` has a failed `Deploy IAMBANDOBANDZ` run because site tests could not find `bheardnetwork/logo.jpg` and `bheardnetwork/demo-media/1.wav`. The separate public verification later succeeded against the existing live surface; its recovery/deployment steps were skipped. That is not evidence that the draft asset fix has been deployed.
+- Targeted Dev-Ville hygiene checks on the default branch: code search returned no `TODO`, `FIXME`, or `NotImplementedError` matches; all eight documentation links listed in the root README resolved. No root `CONTRIBUTING.md` or `AGENTS.md` was found, nor in the checked `.github/`, `docs/`, or `chronos/` locations. `requirements.txt` pins `tkinter-modernui==1.0.0` and `Pillow==12.1.1`; no root `pyproject.toml` was found. These are targeted checks, not an exhaustive dead-code or dependency-drift audit.
 
 ## B. Work actually performed
 
