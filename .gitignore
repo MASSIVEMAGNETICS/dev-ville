@@ -43,6 +43,7 @@ logs/
 # Victor runtime state / secrets
 identity/*.key
 chronos/*.jsonl
+chronos/*.jsonl.lock
 
 # Private runtime databases / credentials
 state/private/

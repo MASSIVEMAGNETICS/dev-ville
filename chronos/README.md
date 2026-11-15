@@ -20,6 +20,12 @@ Each appended record must:
 4. compute `event_id`, `event_hash`, and `chain_hash` with canonical JSON + SHA-256;
 5. survive a complete replay through the Chronos verifier.
 
+## Writer serialization
+
+Persisted appends acquire an OS advisory lock on a sibling `<ledger>.lock` file (`flock` on POSIX, `msvcrt.locking` on Windows). The lock serializes cooperating local processes. A writer whose in-memory head is stale reloads and validates the existing append-only prefix before retrying; `Trace0Observer` retries a stale candidate up to three times. Direct stale `append()` calls fail with `StaleChronosHeadError`. If the on-disk prefix has been truncated or rewritten, the append fails closed and leaves the file untouched.
+
+The lock is local-filesystem coordination, not a distributed lock or a guarantee for arbitrary network filesystems. All writers must use `ChronosLedger`; direct JSONL writes bypass the lock. Readers see the snapshot loaded by their ledger instance and should reopen to observe later appends. The `empire_sync/manifest.json` single-writer/multi-reader model remains unchanged.
+
 ## Authority boundary
 
 This ledger records state and evidence. It does not grant execution authority, merge authority, deployment authority, or permission to weaken any existing Victor invariant.

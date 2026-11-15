@@ -113,3 +113,14 @@ jobs:
                   f"append-only prefix preserved; prior={len(prior_lines)} current={len(current_lines)}"
               )
           PY
+
+  verify-windows-writer-lock:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify Chronos persistence and process-lock contracts
+        run: python -m unittest -v test_trace0_chronos_persistence.py

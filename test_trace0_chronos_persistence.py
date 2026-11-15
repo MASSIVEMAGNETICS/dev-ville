@@ -9,16 +9,32 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 import json
+import multiprocessing
 from unittest.mock import MagicMock, patch
 
 from trace0_chronos import ChronosLedger, Trace0Observer
 
 
-def observe(ledger):
+def observe(ledger, actor="victor.test"):
     return Trace0Observer(
         ledger, clock=lambda: datetime(2026, 10, 31, tzinfo=timezone.utc)
-    ).observe(actor="victor.test", action="observation", entity_id="synthetic",
+    ).observe(actor=actor, action="observation", entity_id="synthetic",
               evidence={"kind": "synthetic_test_only"})
+
+
+def _append_from_process(path, barrier, results, actor):
+    ledger = ChronosLedger(path)
+    observer = Trace0Observer(
+        ledger, clock=lambda: datetime(2026, 10, 31, tzinfo=timezone.utc)
+    )
+    barrier.wait(timeout=20)
+    event, receipt = observer.observe(
+        actor=actor,
+        action="concurrent_observation",
+        entity_id=actor,
+        evidence={"kind": "synthetic_multiprocess_test"},
+    )
+    results.put((event.sequence, event.event_id, receipt.chain_hash))
 
 
 class ChronosPersistenceTests(unittest.TestCase):
@@ -36,7 +52,12 @@ class ChronosPersistenceTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             path = Path(root) / "chronos.jsonl"
             ledger = ChronosLedger(str(path))
-            with patch.object(Path, "open", side_effect=OSError("read-only disk")):
+            original_open = Path.open
+            def fail_ledger_open(target, *args, **kwargs):
+                if target == path:
+                    raise OSError("read-only disk")
+                return original_open(target, *args, **kwargs)
+            with patch.object(Path, "open", new=fail_ledger_open):
                 with self.assertRaises(OSError):
                     observe(ledger)
             self.assertEqual(ledger.events(), [])
@@ -87,7 +108,12 @@ class ChronosPersistenceTests(unittest.TestCase):
             ledger = ChronosLedger(str(Path(root) / "chronos.jsonl"))
             handle = MagicMock()
             handle.__enter__.return_value.write.return_value = 0
-            with patch.object(Path, "open", return_value=handle):
+            original_open = Path.open
+            def short_ledger_write(target, *args, **kwargs):
+                if target == ledger.jsonl_path:
+                    return handle
+                return original_open(target, *args, **kwargs)
+            with patch.object(Path, "open", new=short_ledger_write):
                 with self.assertRaisesRegex(OSError, "short Chronos"):
                     observe(ledger)
             self.assertEqual(ledger.events(), [])
@@ -169,6 +195,73 @@ class ChronosPersistenceTests(unittest.TestCase):
             self.assertEqual(len(restored.receipts()), 2)
             self.assertEqual(restored.last_chain_hash, ledger.last_chain_hash)
             self.assertEqual(path.read_bytes(), before)
+
+    def test_stale_writer_refreshes_before_append(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            first = ChronosLedger(str(path))
+            stale = ChronosLedger(str(path))
+            observe(first, actor="writer.first")
+            event, _ = observe(stale, actor="writer.stale")
+            replay = ChronosLedger(str(path))
+            self.assertEqual(event.sequence, 2)
+            self.assertEqual([row["sequence"] for row in replay.events()], [1, 2])
+            self.assertTrue(replay.verify_chain())
+
+    def test_multiple_processes_serialize_stale_writers(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            observe(ChronosLedger(str(path)), actor="writer.seed")
+            context = multiprocessing.get_context("spawn")
+            barrier = context.Barrier(2)
+            results = context.Queue()
+            processes = [
+                context.Process(target=_append_from_process, args=(str(path), barrier, results, f"writer.{index}"))
+                for index in range(2)
+            ]
+            try:
+                for process in processes:
+                    process.start()
+                for process in processes:
+                    process.join(timeout=30)
+                self.assertFalse(any(process.is_alive() for process in processes), "writer process timed out")
+                self.assertEqual([process.exitcode for process in processes], [0, 0])
+                rows = [results.get(timeout=5) for _ in processes]
+                self.assertEqual(sorted(row[0] for row in rows), [2, 3])
+                self.assertEqual(len({row[1] for row in rows}), 2)
+                replay = ChronosLedger(str(path))
+                self.assertTrue(replay.verify_chain())
+                self.assertEqual([row["sequence"] for row in replay.events()], [1, 2, 3])
+            finally:
+                for process in processes:
+                    if process.is_alive():
+                        process.terminate()
+                        process.join()
+                results.close()
+                results.join_thread()
+
+    def test_stale_writer_rejects_truncated_disk_prefix_without_repair(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            writer = ChronosLedger(str(path))
+            observe(writer)
+            stale = ChronosLedger(str(path))
+            path.write_bytes(b"")
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "immutable prefix changed"):
+                observe(stale, actor="writer.after_truncate")
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_persisted_ledger_rejects_unpersisted_snapshot_restore(self):
+        with TemporaryDirectory() as root:
+            path = Path(root) / "chronos.jsonl"
+            source = ChronosLedger()
+            observe(source)
+            persisted = ChronosLedger(str(path))
+            persisted.restore(source.events(), source.receipts())
+            with self.assertRaisesRegex(RuntimeError, "memory-only ledger"):
+                observe(persisted, actor="writer.invalid_restore")
+            self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":
