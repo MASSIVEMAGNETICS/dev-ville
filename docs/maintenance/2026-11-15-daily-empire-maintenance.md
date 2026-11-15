@@ -107,7 +107,7 @@ Review and, only if approved, merge B Heard PR #59; then rerun PR #57's site/reg
 
 ## Exact current-head verification addendum — run 11 (2026-11-15)
 
-The current draft PR head `0513539e820beff9e5af12ed3f6add72e3d8244f` was checked again through GitHub Actions. All five associated workflows completed **SUCCESS** on that exact commit:
+The executable/code-and-receipt head `0513539e820beff9e5af12ed3f6add72e3d8244f` was checked through GitHub Actions. All five associated workflows completed **SUCCESS** on that exact commit:
 
 - [Canonical Execution Ledger #43733929074](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929074) — Ubuntu and Windows writer/persistence jobs both passed; each ran the 16-case Chronos persistence suite, then replay and append-only-prefix checks.
 - [Victor Driver Tests #43733929001](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929001) — 166 tests on Python 3.11 and 166 on Python 3.12; 3 skipped per version because the external Truth Compiler path was not configured.
@@ -118,3 +118,6 @@ The current draft PR head `0513539e820beff9e5af12ed3f6add72e3d8244f` was checked
 These are GitHub-hosted checks. No local test run is claimed in this addendum. The runtime regression logs still report existing `ResourceWarning` messages from `test_vrc_fresh_process_recovery.py`; GitHub also reports Node.js 20 action-runtime deprecation warnings for the existing checkout/setup-python action versions. Neither warning was suppressed or used to weaken a gate.
 
 This exact-head result strengthens confidence in the draft branch's current code and receipt commit. It does **not** establish hardware power-loss durability, multi-host/network-filesystem locking, non-cooperating writer safety, actor authentication, or production deployment readiness. PR #41 remains **DRAFT / UNMERGED** pending independent review and explicit founder approval. No historical ledger data, production state, secrets, credentials, EUSS, or Victor sovereignty controls were changed.
+
+
+The CI evidence above belongs to executable head `0513539e820beff9e5af12ed3f6add72e3d8244f`. Later receipt-only commits, including `61109ac7a5c83aeb89d040bd2a59c84437a6c5ae` and this clarification, change only this Markdown file. No new workflow run is claimed for those documentation-only commits.
