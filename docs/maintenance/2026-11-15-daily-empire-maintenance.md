@@ -44,7 +44,7 @@ The branch remains a draft PR. No merge, force-push, history rewrite, canonical-
 
 - Reused the existing canonical `ChronosLedger`; no second ledger, alternate schema, or duplicate persistence module was introduced.
 - Persisted writers coordinate through an OS advisory lock. A stale `Trace0Observer` rebuilds its event against the refreshed head and retries up to three times. A direct stale `append()` raises `StaleChronosHeadError`.
-- A rewritten or truncated existing prefix is rejected; the implementation does not truncate, repair, or rewrite historical evidence.
+- A truncated or semantically altered event/receipt prefix is rejected; the GitHub ledger workflow remains the byte-for-byte prefix gate. The implementation does not truncate, repair, or rewrite historical evidence.
 - No duplicate repositories or dead projects were deleted or declared. Similar names are only candidates for later provenance-backed mapping.
 
 ## E. Tests, builds, CI, and regressions
