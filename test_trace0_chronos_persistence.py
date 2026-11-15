@@ -164,7 +164,8 @@ class ChronosPersistenceTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             path = Path(root) / "chronos.jsonl"
             event, receipt = observe(ChronosLedger(str(path)))
-            path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+            raw = path.read_bytes().replace(b"\r\n", b"\n")
+            path.write_bytes(raw.replace(b"\n", b"\r\n"))
             replay = ChronosLedger(str(path))
             self.assertTrue(replay.verify_chain())
             self.assertEqual(replay.events()[0], event.to_dict())
