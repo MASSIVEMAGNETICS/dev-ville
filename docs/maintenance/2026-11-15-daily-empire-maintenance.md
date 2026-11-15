@@ -104,3 +104,17 @@ The branch remains a draft PR. No merge, force-push, history rewrite, canonical-
 Review and, only if approved, merge B Heard PR #59; then rerun PR #57's site/registry contracts against the asset-complete base before considering any deployment. This is the clearest current path from repository work toward a functioning B Heard revenue surface.
 
 **Approval state:** KEEP PR #41 DRAFT. Do not auto-merge or deploy.
+
+## Exact current-head verification addendum — run 11 (2026-11-15)
+
+The current draft PR head `0513539e820beff9e5af12ed3f6add72e3d8244f` was checked again through GitHub Actions. All five associated workflows completed **SUCCESS** on that exact commit:
+
+- [Canonical Execution Ledger #43733929074](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929074) — Ubuntu and Windows writer/persistence jobs both passed; each ran the 16-case Chronos persistence suite, then replay and append-only-prefix checks.
+- [Victor Driver Tests #43733929001](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929001) — 166 tests on Python 3.11 and 166 on Python 3.12; 3 skipped per version because the external Truth Compiler path was not configured.
+- [Lead consent ledger #43733928973](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733928973) — 19 tests passed.
+- [Victor organ contract #43733929058](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929058) — adapter probe and contract regression steps completed successfully.
+- [Victor Canonical Heartbeat v0 #43733929108](https://github.com/MASSIVEMAGNETICS/dev-ville/actions/runs/43733929108) — Python 3.11 and 3.12 jobs passed; each ran 7 launch-gate tests.
+
+These are GitHub-hosted checks. No local test run is claimed in this addendum. The runtime regression logs still report existing `ResourceWarning` messages from `test_vrc_fresh_process_recovery.py`; GitHub also reports Node.js 20 action-runtime deprecation warnings for the existing checkout/setup-python action versions. Neither warning was suppressed or used to weaken a gate.
+
+This exact-head result strengthens confidence in the draft branch's current code and receipt commit. It does **not** establish hardware power-loss durability, multi-host/network-filesystem locking, non-cooperating writer safety, actor authentication, or production deployment readiness. PR #41 remains **DRAFT / UNMERGED** pending independent review and explicit founder approval. No historical ledger data, production state, secrets, credentials, EUSS, or Victor sovereignty controls were changed.
