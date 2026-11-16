@@ -164,7 +164,7 @@ This addendum preserves the earlier receipt as the baseline and records the addi
 
 - [VICTOR-SSI PR #21](https://github.com/MASSIVEMAGNETICS/VICTOR-SSI/pull/21): exact-head CI #43935362421 succeeded; the change remains draft and does not add authentication.
 - [Shared Intelligence PR #3](https://github.com/MASSIVEMAGNETICS/shared-intelligence/pull/3): review-only workflow #43925042811 and BANDO_DRIVER CI #43925042802 succeeded; collection remains skipped on the PR event.
-- [Dev-Ville PR #43](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/43): all four exact-head workflows passed before this addendum commit; the new commit will trigger fresh PR validation.
+- [Dev-Ville PR #43](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/43): all four exact-head workflows passed on the new addendum head: #43947163580, #43947162556, #43947162555, and #43947162708.
 - [Puzzle assembler PR #5](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/5): exact-head run #43874983102 succeeded; private inventory semantics are explicitly token-visible, not proof of owner-wide private access.
 - [victorOS #22](https://github.com/MASSIVEMAGNETICS/victorOS/pull/22), [victor_empire #10](https://github.com/MASSIVEMAGNETICS/victor_empire/pull/10), [Dev-Ville #41](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/41), [the-ai-ear #3](https://github.com/MASSIVEMAGNETICS/the-ai-ear/pull/3), [suno-killer #30](https://github.com/MASSIVEMAGNETICS/suno-killer/pull/30), and [B Heard site #59](https://github.com/MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io/pull/59) had successful checks at the exact heads inspected; none was merged.
 - VICTOR-SSI Windows packaging remains blocked: windows-pack.yml runs npm ci, but desktop/electron/package-lock.json is absent on main and also absent on the Electron 42 Dependabot branch. Existing Electron PRs #17 and #7 each change only package.json; neither supplies a lockfile. The container could not reach npm registry DNS, so no lockfile was fabricated. Keep npm ci and resolve the approved dependency baseline before generating a lock.
@@ -177,3 +177,35 @@ This addendum preserves the earlier receipt as the baseline and records the addi
 - New verified customers: **0**. New paid orders: **0**. Verified revenue attributable to this run: **$0**. Production deployments: **0**. No measurable housing-stability change is established.
 - Engineering progress is reviewable but not shipped: one new code PR, one commit, three files, two targeted regression tests, 33 passing GitHub Actions tests, and one passing assembly smoke test.
 - **Next highest-leverage action:** generate and commit a reproducible desktop/electron/package-lock.json after the Electron/electron-builder baseline is explicitly selected, then rerun the Windows packaging workflow. Do not replace npm ci with an unpinned install.
+
+
+### F. Open-queue classification snapshot
+
+A first-pass, single-label triage was run against the current 91 open PR search results using the PR title/body, the existing Empire canonical-repository manifest, and the separate GitHub draft query:
+
+| Primary triage label | Count |
+|---|---:|
+| ACTIVE_CANONICAL | 4 |
+| DEPENDENCY_MAINTENANCE | 16 |
+| HISTORICAL_DONOR | 2 |
+| BLOCKED | 5 |
+| SUPERSEDED / CLOSE_CANDIDATE | 2 |
+| NEEDS_REVIEW | 33 |
+| NEEDS_TEST | 0 explicit pending markers |
+| NEEDS_HUMAN_APPROVAL | 29 |
+| **Total** | **91** |
+
+- GitHub reports 53 draft PRs and 38 non-draft PRs.
+- This is a text/manifest-based triage, not an authoritative merge decision. The zero NEEDS_TEST count means no explicit pending-test marker matched the classifier; it does **not** mean all 91 PRs have been independently tested.
+- Donor examples: puzzle assembler #3 and victorOS #4. Close-candidate examples: octoformer #2 ("No optimization possible") and VICCTORIAN #1 ("No-op"). They were not closed.
+- Dependency maintenance is concentrated in SunoVault and VICTOR-SSI. The open queue includes active canonical work, dependency updates, historical donor lines, blocked items, and human approval gates; no broad PR cleanup was attempted.
+- The exact-head deep pass remained focused on the active frontier: VICTOR-SSI #21, Shared Intelligence #3, puzzle assembler #5 and #6, Dev-Ville #43, victorOS #22, victor_empire #10, Dev-Ville #41, the-ai-ear #3, suno-killer #30, and B Heard site #59. Their inspected PR checks passed. Drafts remain drafts.
+
+### G. Scheduled workflow evidence and current blockers
+
+- The last scheduled puzzle-assembler run, [#43752056694](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43752056694), completed all steps successfully on 2026-11-15: code verification, Victor assembly, Empire scan/receipt, run-summary publication, immutable receipt upload, and state commit. No 2026-11-16 scheduled run was visible at the time of this pass.
+- Shared Intelligence currently has **zero scheduled runs**; its daily BANDO_DRIVER workflow remains in draft PR #3 and has not been merged into main.
+- VICTOR-SSI Windows packaging remains the clearest deterministic build blocker. The main Windows job still fails at npm ci on a missing lockfile; no approved lockfile baseline was selected.
+- B Heard site main's last observed custom deployment run #43817878391 failed, while scheduled public verification #43863432828 and store-state reconciliation #43860598780 succeeded. Those successful checks do not repair the failed deployment.
+- SunoVault PR #30's artifact-retention change passed its Windows build and CI, but earlier Dependabot Windows builds for PRs #28 and #29 failed. Branch protection and Code Scanning configuration remain owner-level blockers.
+- The B_HEARD_STUDIO_LITE workflow's latest observed failures are from October; no current successful APK/device acceptance was established.
