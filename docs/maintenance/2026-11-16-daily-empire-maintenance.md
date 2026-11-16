@@ -38,6 +38,16 @@ The existing daily synthesis / assembly code in `victor-sovereign-puzzle-assembl
 
 The PR-event runs verify tests and configuration but skip their live collection/assembly steps. This run therefore used connected GitHub inventory and workflow evidence directly; it does **not** claim that the scheduled synthesis function itself executed.
 
+
+### Receipt persistence — Dev-Ville
+
+- Repository: `MASSIVEMAGNETICS/dev-ville`
+- Branch: `empire-maintenance/2026-11-16-dev-ville-daily-receipt`
+- Commit: [`b1a4dc5`](https://github.com/MASSIVEMAGNETICS/dev-ville/commit/b1a4dc5d61916c0bfc2b341ba6dcfdad8bc135b8)
+- Draft PR: [#43](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/43)
+- File: `docs/maintenance/2026-11-16-daily-empire-maintenance.md`
+- Verification: fetched back from GitHub; sections A–K present, code fences balanced, and no placeholder markers found
+
 ## C. Generated artifacts and documentation
 
 - Added `gateway/test_compose_exposure.py`, a regression test for the six expected loopback-only host bindings.
