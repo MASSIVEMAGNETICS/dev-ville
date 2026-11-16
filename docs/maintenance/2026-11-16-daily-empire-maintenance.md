@@ -144,13 +144,13 @@ This addendum preserves the earlier receipt as the baseline and records the addi
 
 - Repository: [victor-sovereign-puzzle-assembler](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler)
 - Branch: **empire-maintenance/2026-11-16-puzzle-assembler-rem-counter**
-- Commit: [82b2d25](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/commit/82b2d25b5614023f9fb0d9ce68175f89f8f7cf82)
+- Commits: [82b2d25](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/commit/82b2d25b5614023f9fb0d9ce68175f89f8f7cf82) (counter fix) and [66006fa](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/commit/66006fae4f45483dc7f9ea940e90f2a8a07191be) (test isolation).
 - Draft PR: [#6 — keep REM cycle count cumulative across runs](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/6)
 - Files: **victor_sovereign_assembler.py**, **pieces/01_persistent_memory_rem.py**, **tests/test_assembler_rem_cycles.py**.
 - The existing assembler reset rem_cycle_count to the run-local loop index, then the persistent-memory piece incremented it again. A three-cycle execution therefore persisted four. On restored state, the reset also prevented cumulative continuity.
 - The patch leaves the daily inventory/synthesis functions, manifest, schedule, and cross-repository write policy unchanged. The memory piece now owns the cumulative counter and updates rem_cycles_completed.
-- Local focused harness: **python -m unittest discover -s tests -p 'test_assembler_rem_cycles.py' -v** — **2 passed**, covering a fresh 3-cycle run and resume from cycle 5 to cycle 7.
-- Exact PR-head [Actions run #43946777419](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43946777419) — **SUCCESS**; **33 repository tests passed** and the existing **python run_victor.py** assembly smoke test passed. The scheduled daily-assembly job was skipped on the pull-request event.
+- Local focused harness: **python -m unittest discover -s tests -p 'test_assembler_rem_cycles.py' -v** — **2 passed**, covering a fresh 3-cycle run and resume from cycle 5 to cycle 7. The test now patches only the temporary state path and sleep function; it does not alter global logging configuration.
+- Latest exact PR-head [Actions run #43947639764](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43947639764) — **SUCCESS**; **33 repository tests passed** and the existing **python run_victor.py** assembly smoke test passed. The preceding PR-head run #43946777419 also passed. The scheduled daily-assembly job was skipped on the pull-request event.
 - Existing saved state is not rewritten; historical overcounts remain historical. No state migration or deployment was performed.
 
 ### C. Daily synthesis execution status
@@ -166,6 +166,7 @@ This addendum preserves the earlier receipt as the baseline and records the addi
 - [Shared Intelligence PR #3](https://github.com/MASSIVEMAGNETICS/shared-intelligence/pull/3): review-only workflow #43925042811 and BANDO_DRIVER CI #43925042802 succeeded; collection remains skipped on the PR event.
 - [Dev-Ville PR #43](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/43): all four exact-head workflows passed on the new addendum head: #43947163580, #43947162556, #43947162555, and #43947162708.
 - [Puzzle assembler PR #5](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/5): exact-head run #43874983102 succeeded; private inventory semantics are explicitly token-visible, not proof of owner-wide private access.
+- [Puzzle assembler PR #6](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/6): current head 66006fae4f45483dc7f9ea940e90f2a8a07191be is open, draft, mergeable, and exact-head CI #43947639764 passed.
 - [victorOS #22](https://github.com/MASSIVEMAGNETICS/victorOS/pull/22), [victor_empire #10](https://github.com/MASSIVEMAGNETICS/victor_empire/pull/10), [Dev-Ville #41](https://github.com/MASSIVEMAGNETICS/dev-ville/pull/41), [the-ai-ear #3](https://github.com/MASSIVEMAGNETICS/the-ai-ear/pull/3), [suno-killer #30](https://github.com/MASSIVEMAGNETICS/suno-killer/pull/30), and [B Heard site #59](https://github.com/MASSIVEMAGNETICS/MASSIVEMAGNETICS.github.io/pull/59) had successful checks at the exact heads inspected; none was merged.
 - VICTOR-SSI Windows packaging remains blocked: windows-pack.yml runs npm ci, but desktop/electron/package-lock.json is absent on main and also absent on the Electron 42 Dependabot branch. Existing Electron PRs #17 and #7 each change only package.json; neither supplies a lockfile. The container could not reach npm registry DNS, so no lockfile was fabricated. Keep npm ci and resolve the approved dependency baseline before generating a lock.
 - B Heard website main deployment remains blocked by missing bheardnetwork/logo.jpg and bheardnetwork/demo-media/1.wav; PR #59's PR checks pass but it remains draft.
