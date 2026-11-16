@@ -371,3 +371,31 @@ The following existing bounded maintenance PRs were rechecked. All remain **OPEN
 - The live daily synthesis workflow was **not dispatched**. This run performed connected GitHub inventory and exact-head verification; it does not claim that the scheduled collector executed on 2026-11-16.
 
 **Approval gate:** retain PR #43 as **DRAFT / UNMERGED**. The missed scheduled-run observation should be addressed through an authorized workflow-dispatch capability or a human-triggered run; do not change the workflow schedule or grant broader credentials merely to mask the missing run.
+
+
+## Incremental execution — 2026-11-16 22:53 UTC (scheduled-run correction)
+
+### Existing daily synthesis — verified execution
+
+The earlier observation in this receipt that no November 16 scheduled run was visible was accurate at its 21:55 UTC inspection time, but it was superseded by a later scheduled execution:
+
+- [Empire Autopilot Daily run #43974313131](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43974313131) — event `schedule`, completed **SUCCESS**, main head `430bc237df2b5beda10abe1c6a3ab8ec904f8bbc`; started 2026-11-16 22:53:33 UTC and completed 22:54:01 UTC.
+- Job `Scan assemble verify receipt` (#133674228324) completed **SUCCESS**. The exact job steps show code verification, Victor assembly, lattice scan, run-summary publication, immutable artifact upload, and state commit all succeeded.
+- Generated commit: [`7b8cf08f2bc9627b62c5cbc55180a2ef9983c14a`](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/commit/7b8cf08f2bc9627b62c5cbc55180a2ef9983c14a), `chore(empire): daily assembly receipt 2026-11-16`. `EMPIRE_STATUS.md` records generation time 2026-11-16 22:53:46 UTC.
+- The scheduled receipt reports 304 repositories, 78 open PRs, and 12 queued actions. It reports zero private repositories visible, `private_inventory_complete=false`, and a GitHub API 403 for `/user/repos` (`Resource not accessible by integration`). The daily function completed, but private inventory completeness was not achieved.
+- The run's `cross_repo_write_policy` remains `disabled-unless-explicitly-authorized`; no other repository was modified by the scheduled collector.
+
+### Inventory reconciliation and current blockers
+
+- Connected owner-scoped GitHub search returned 91 open PRs and 13 open issues. It includes the private `suno-killer` repository (9 open PRs and 3 open issues). The scheduled workflow's 78-PR count and the connected 91-PR count are not directly reconciled; the difference is consistent with differing token visibility/search scope, but the exact delta is **unknown**.
+- The connected repository-list endpoint returned 100 records at its requested page size and no second page. It does not independently validate the scheduled collector's 304-repository count.
+- GitHub resolves `MASSIVEMAGNETICS` as a **User** account, not an Organization; the authenticated profile's organization membership lists are empty. The Empire repositories are owned by that user account.
+- The new [Puzzle Assembler PR #5](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/5) follow-up commit `a22fd8c6ea21252e275b0bc9f050dd340d594fe0` makes token-visible pagination insufficient to claim an absent private canonical repository is missing. Only an explicit `owner_authoritative` scope can support that wording; the current collector emits `token_visible`. Exact-head Actions run [#43974948664](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43974948664) completed **SUCCESS**: 40 tests passed and the five-piece assembly smoke test passed. PR #5 remains draft and unmerged.
+- [Puzzle Assembler PR #6](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/pull/6) remains a separate REM counter correction; exact-head run #43947639764 passed 33 tests and the assembly smoke test. The existing daily synthesis functions and workflow schedule were not changed by either PR.
+- [victor_empire PR #10](https://github.com/MASSIVEMAGNETICS/victor_empire/pull/10) remains open/draft. Its existing P2 review finding is unresolved: killing only the direct adapter PID does not prove descendant-process containment when descendants inherit stdout/stderr. POSIX process-group/session handling and a Windows Job Object or equivalent, with bounded reader-exit regression tests, remain required before the timeout guarantee is accepted.
+
+### Corrected status
+
+The November 16 scheduled synthesis **did execute successfully**. The remaining blocker is not a missing daily run; it is incomplete private inventory visibility and the need to review the queued bounded PRs. The earlier "dispatch outstanding" / "no scheduled run" statements remain historical observations as of their recorded timestamps and are superseded by the evidence above.
+
+No workflow schedule, permissions, secret, credential, production deployment, DNS, billing, package release, EUSS rule, sovereignty rule, or approval gate was changed.
