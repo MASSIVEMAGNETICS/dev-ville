@@ -210,3 +210,135 @@ A first-pass, single-label triage was run against the current 91 open PR search 
 - B Heard site main's last observed custom deployment run #43817878391 failed, while scheduled public verification #43863432828 and store-state reconciliation #43860598780 succeeded. Those successful checks do not repair the failed deployment.
 - SunoVault PR #30's artifact-retention change passed its Windows build and CI, but earlier Dependabot Windows builds for PRs #28 and #29 failed. Branch protection and Code Scanning configuration remain owner-level blockers.
 - The B_HEARD_STUDIO_LITE workflow's latest observed failures are from October; no current successful APK/device acceptance was established.
+
+
+---
+
+## Incremental verification — 2026-11-16 20:56 UTC
+
+This follow-up preserves the earlier A–K receipt and records the incremental inventory/verification performed after the 20:15 UTC update. It does not replace either the puzzle-assembler daily synthesis function or BANDO_DRIVER.
+
+### A. Strategic repository inventory and 24-hour delta
+
+The configured 12 Empire lanes were rechecked, plus the canonical puzzle-assembler repository:
+
+- `shared-intelligence`, `victorOS`, `victor_empire`, `omni`, `dev-ville`, `SUNOKILLER`, `the-ai-ear`, `VICTOR-SSI`, `MASSIVEMAGNETICS.github.io`, `Victor.AGI`, `victor_llm`, `MASSIVEMAGNETICS-IP`, and `victor-sovereign-puzzle-assembler`.
+- All 13 selected repositories are visible, public, and non-archived. The GitHub owner resolves as a **User** account, not an Organization object. The repository-list endpoint returned 100 entries and offset 100 returned none; this describes the connected account's visible inventory, not proof of visibility into every private resource.
+- Direct per-repository queries returned **48 open PRs and 7 open issues** across these 13 repositories. Counts by repository:
+
+| Repository | Open PRs | Open issues |
+|---|---:|---:|
+| shared-intelligence | 1 | 0 |
+| victorOS | 2 | 1 |
+| victor_empire | 5 | 1 |
+| omni | 2 | 0 |
+| dev-ville | 6 | 2 |
+| SUNOKILLER | 2 | 0 |
+| the-ai-ear | 2 | 0 |
+| VICTOR-SSI | 10 | 0 |
+| MASSIVEMAGNETICS.github.io | 7 | 3 |
+| Victor.AGI | 1 | 0 |
+| victor_llm | 6 | 0 |
+| MASSIVEMAGNETICS-IP | 1 | 0 |
+| victor-sovereign-puzzle-assembler | 3 | 0 |
+| **Total** | **48** | **7** |
+
+Latest default-branch commit evidence (UTC):
+
+| Repository | Latest main commit | Date |
+|---|---|---|
+| MASSIVEMAGNETICS.github.io | `3232240` | 2026-11-16 06:36 |
+| dev-ville | `d4d3ed2` | 2026-11-11 12:27 |
+| VICTOR-SSI | `97a9d62` | 2026-11-13 06:40 |
+| victorOS | `e7fa3eb` | 2026-11-02 22:00 |
+| victor-sovereign-puzzle-assembler | `430bc23` | 2026-11-15 19:22 |
+| SUNOKILLER | `1fdb34f` | 2026-10-01 01:43 |
+| shared-intelligence | `6de2eca` | 2026-10-01 01:43 |
+| victor_empire | `037939a` | 2026-08-10 20:07 |
+| MASSIVEMAGNETICS-IP | `58c3af2` | 2026-08-04 06:57 |
+| victor_llm | `e4e263b` | 2026-07-09 05:08 |
+| omni | `2fd4624` | 2026-05-25 03:00 |
+| the-ai-ear | `ac9c4c2` | 2026-05-15 06:06 |
+| Victor.AGI | `20a4556` | 2025-11-26 19:42 |
+
+Only the B Heard site main branch has a commit inside the current 24-hour window. The puzzle-assembler main commit is just outside it; its current REM fix remains on draft PR #6.
+
+### B. Work performed in this incremental pass
+
+- Updated this existing receipt on the existing branch `empire-maintenance/2026-11-16-dev-ville-daily-receipt`, reusing Dev-Ville PR #43.
+- No runtime code, synthesis function, source adapter, registry, authority policy, deployment, or production configuration was changed.
+- Revalidated exact-head workflow metadata for the existing review branches listed below. No new PR was opened and no PR was merged.
+
+### C. Generated artifact
+
+- This dated Markdown addendum in the existing `docs/maintenance/` ledger.
+- No new repository, package, runtime dependency, schema, or architecture was introduced.
+
+### D. Consolidation/refactor result
+
+None in this pass. The puzzle-assembler REM counter fix remains isolated in PR #6. The existing puzzle-assembler daily inventory/synthesis function and Shared Intelligence BANDO_DRIVER scoring/selection logic remain preserved; neither was edited by this pass.
+
+### E. Tests, builds, and CI evidence
+
+**Successful exact-head PR workflows observed:**
+
+- Dev-Ville PR #43, head `6bdb7521c583d0d7d7e88fd845d69ebdc5231a31`: all four workflows succeeded — #43947772487, #43947772748, #43947772470, #43947772532.
+- Puzzle assembler PR #6, head `66006fae4f45483dc7f9ea940e90f2a8a07191be`: #43947639764 succeeded; the existing receipt records 33 tests and the assembly smoke test passing. Live collection is skipped on PR events.
+- VICTOR-SSI PR #21, head `18468d2dd5ba29d1cdd25e82eedc5a10eb7c86e1`: #43935362421 succeeded.
+- B Heard site PR #59, head `2af11f9ad999a6699587927973838d326ce5d624`: Site Contract CI #43820590507 and Canonical Registry #43820590544 succeeded.
+- VictorOS PR #22, head `1bd1caa95224dd5bfcc60850b6a091dbb59dcdd5`: Python Core Tests #43738440848 succeeded. P0 issue #19 remains open; a green test run is not proof of exactly-once external effects.
+- victor_empire PR #10, head `c88a12e1b5c8d21d714602dba8ee59590d8edcee`: closed-loop workflow #43788966676 succeeded. POSIX descendants that deliberately create a new session remain outside the documented process-group boundary.
+- Shared Intelligence PR #3, head `138514157212752399fa2a4af284b741a27be39b`: BANDO_DRIVER CI #43925042802 and review-only workflow #43925042811 succeeded. The collection step was skipped on the PR event; no live cross-repository snapshot is claimed.
+- Victor.AGI PR #7, head `6df4ae6151e0067e456d7156572637d3b8e4ab45`: Client Credential Boundary #43656540341 succeeded.
+
+**Known failures/blockers remain:**
+
+- B Heard order-intake PR #57: order-intake contract #43675204169 succeeded, but Site Contract CI #43675204175 and Canonical Registry #43675204097 failed on its older head because the static demo assets were absent. PR #59 supplies deterministic assets and passes its own checks, but is still a separate draft PR; this does not repair main or PR #57 until an authorized integration/merge occurs.
+- VICTOR-SSI main still lacks `desktop/electron/package-lock.json`; the file is absent on main. The existing Windows `npm ci` failure therefore remains unresolved. Do not replace `npm ci` with an unpinned install or fabricate a lockfile without resolving the selected dependency baseline.
+- Victor.AGI main still has the prior client credential exposure pattern: `vite.config.ts` loads `GEMINI_API_KEY` and defines browser-side `process.env.API_KEY` / `process.env.GEMINI_API_KEY`; its README still instructs users to put a key in `.env.local`. PR #7 removes that injection and passes its focused boundary workflow, but remains open/draft. The tracked key was described in the PR as a placeholder; no real credential exposure was established by this inspection.
+- No local application test suite was run in this pass. The results above are GitHub Actions outcomes from the cited exact heads, not tests executed by this automation locally. A fresh CI run for this receipt commit is pending.
+
+A scoped repository search found one `TODO` text match in `victor_empire/roadmap` describing an inbox tag; no `FIXME` matches. The single `NotImplementedError` match in VictorOS is the intentionally abstract `ChronosPromotionAdapter.promote()` boundary; tests inject an implementation. It was not treated as dead code or silently implemented.
+
+### F. Security, reliability, sovereignty, provenance, and deployment risks
+
+- VictorOS issue #19 remains P0: provider idempotency/reconciliation and the crash window around external capability effects are not proven by current CI.
+- VICTOR-SSI PR #21 is a draft loopback-only exposure correction; it does not add gateway authentication.
+- Victor.AGI PR #7 is a draft fix for browser-side provider-key injection. Until reviewed and merged, main retains the risky setup instructions/configuration.
+- The Shared Intelligence collector remains a draft and read-only; the daily workflow is not active on main.
+- B Heard PR #59 is not a production deployment. No DNS, Pages, Stripe, D1, secrets, credentials, branch protection, releases, or production settings were changed.
+
+### G. Cross-repository contradictions and integration opportunities
+
+- The puzzle assembler's daily inventory/synthesis and Shared Intelligence's BANDO_DRIVER are distinct existing decision systems. Both remain unchanged. Their outputs should be reconciled through provenance-bearing snapshots, not by replacing one with the other. Neither live collector ran in this pass.
+- OMNI PR #2 adds deterministic local PCM-WAV evidence for its AI Ear placeholder; The AI Ear PR #3 bounds upload/WebSocket ingress. These are adjacent responsibilities, not proven duplicate implementations. Keep the analysis engine and ingress boundary separate until a contract-level integration test establishes a safe shared adapter.
+- Dev-Ville retains a legacy application/demo layer with randomized review behavior in `agents.py`; its README distinguishes that layer from the deterministic Victor evidence path. Do not use legacy demo approval as authoritative QA evidence.
+- MASSIVEMAGNETICS-IP PR #2 defines a $750 evidence-audit offer but still has no live checkout URL. It is a product candidate, not a sale.
+
+### H. Expected behavior and non-working paths
+
+- The cited PR-head checks should continue to validate their scoped regressions; the receipt-only change does not alter application behavior.
+- Main-branch B Heard deployment remains blocked until the asset fix is approved and integrated. PR #57 remains blocked on its current head.
+- VICTOR-SSI Windows packaging remains blocked until a reproducible lockfile is generated from an explicitly selected Electron dependency baseline.
+- The daily synthesis/collection functions were **not executed by this pass**. The connected GitHub tools expose workflow-run inspection but no workflow-dispatch action, and the latest PR-triggered validations skip live collection. Do not claim a 2026-11-16 scheduled scan or generated live inventory artifact.
+
+### I. Measurable business/autonomy progress
+
+- This pass adds one reviewable documentation update; no runtime feature was shipped.
+- Verified new customers: **0**. Paid orders: **0**. Verified revenue attributable to this pass: **$0**. Deployments: **0**. Incremental contribution to the $100/day objective: **$0**. No measurable housing-stability change is established.
+
+### J. Exact blockers requiring Bando's decision
+
+1. Review and explicitly approve or decline Victor.AGI PR #7's client credential boundary; it is the highest-severity confirmed configuration risk in the inspected lanes.
+2. Review B Heard site PR #59; after an authorized integration, refresh PR #57 and rerun its Site Contract and Canonical Registry checks.
+3. Select the approved Electron/electron-builder versions for VICTOR-SSI and provide an environment with npm registry resolution so a real lockfile can be generated; preserve `npm ci`.
+4. Keep VictorOS issue #19 blocked until provider-specific idempotency, receipt reconciliation, and crash-injection acceptance are demonstrated.
+5. Keep Shared Intelligence PR #3 draft until its read-only schedule and token visibility are explicitly approved and a manual collection smoke test can be run.
+6. Dev-Ville issue #16 still needs an owner-approved persistent HTTPS host/TLS/DNS plan; no DNS change is authorized.
+7. MASSIVEMAGNETICS-IP checkout activation still requires an approved payment configuration and successful test-mode fulfillment evidence.
+
+### K. Single highest-leverage next action
+
+Review and explicitly approve or decline **Victor.AGI PR #7**. Its exact-head credential-boundary workflow passes, and the change removes the current README instruction and Vite configuration that could embed a future provider key in browser code. Keep the PR draft until that human review occurs; then return to B Heard PR #59 as the next revenue-path blocker.
+
+**Approval gate:** this addendum is documentation-only and remains inside the existing draft PR #43. No merge, deployment, credential change, or authority expansion was performed.
