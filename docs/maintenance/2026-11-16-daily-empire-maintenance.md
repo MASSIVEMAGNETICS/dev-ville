@@ -400,3 +400,94 @@ The earlier observation in this receipt that no November 16 scheduled run was vi
 The November 16 scheduled synthesis **did execute successfully**. The remaining blocker is not a missing daily run; it is incomplete private inventory visibility and the need to review the queued bounded PRs. The earlier "dispatch outstanding" / "no scheduled run" statements remain historical observations as of their recorded timestamps and are superseded by the evidence above.
 
 No workflow schedule, permissions, secret, credential, production deployment, DNS, billing, package release, EUSS rule, sovereignty rule, or approval gate was changed.
+
+
+---
+
+## Incremental execution — 2026-11-17 00:23 UTC (2026-11-16 19:23 EST)
+
+### A. Inventory and triage
+
+- GitHub resolves `MASSIVEMAGNETICS` as a **User** account (ID 209589629), not an Organization. Both organization membership endpoints returned an empty list.
+- Owner-scoped repository search `user:MASSIVEMAGNETICS` returned **338 repository results** across four search pages (100 / 100 / 100 / 38). The separate owner-filtered repository-list endpoint returned 100 records at offset 0 and zero at offsets 100, 200, and 300. These endpoints do not reconcile; 338 is the search-index result count, not a verified count of active repositories.
+- Owner-scoped issue search returned **91 open PRs** and **13 open issues**. Private `suno-killer` alone exposes 9 open PRs and 3 open issues to the connected account.
+- Focused Empire lanes: `victor-sovereign-puzzle-assembler` 3 open PRs / 0 issues; `dev-ville` 6 / 2; `Victor.AGI` 1 / 0; public `SUNOKILLER` 2 / 0; `the-ai-ear` 2 / 0; `Victor_Synthetic_Super_Intelligence` 0 / 0. `victor-v2-atomic-pulse` is an empty Git repository (commit-list API returned 409).
+- Existing scheduled synthesis run [#43974313131](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43974313131) remains the latest observed daily run: scheduled event, SUCCESS, started 2026-11-16 22:53:33 UTC and completed 22:54:01 UTC. It generated commit `7b8cf08f2bc9627b62c5cbc55180a2ef9983c14a`. Its 304-repository / 78-open-PR report and the connected 338-repository / 91-open-PR search results are not reconciled. The scheduled collector reported private inventory unavailable (403 on `/user/repos`); do not treat its public/token-visible subset as owner-authoritative.
+- The latest main-branch commit of `Victor.AGI` is `20a4556aba5086db8be766830ce3835bab3ab227`. Main still contains `loadEnv` and browser-side `process.env.API_KEY` / `process.env.GEMINI_API_KEY` definitions. Main `App.tsx` and `types.ts` each contain literal merge-conflict markers. Code search returned no TODO or FIXME matches in `Victor.AGI`.
+
+### B. Work performed in this incremental run
+
+- Updated the existing draft [Victor.AGI PR #7](https://github.com/MASSIVEMAGNETICS/Victor.AGI/pull/7) on branch `empire-maintenance/2026-11-14-victor-agi-client-key-boundary`; final head: `a2adac5ae72d521f558d7cadeec5053e83a00e79`.
+- New commits:
+  - `f069b6fec6a9e3f464c664b9aca4f3b287b0ea5e` — add regression coverage for tracked local environment files.
+  - `e3216f8f1767f618ff9eda4e24267c6474f7267d` — trigger credential-boundary CI when `.gitignore` or `.env.local` changes.
+  - `a2adac5ae72d521f558d7cadeec5053e83a00e79` — remove tracked `.env.local` after verifying it contained only `GEMINI_API_KEY=PLACEHOLDER_API_KEY`.
+- A first PR metadata update was rejected because the same-repository PR does not accept the cross-repository `maintainer_can_modify` flag. The retry without that flag succeeded. No PR state, base branch, or draft status changed.
+- This existing Dev-Ville receipt is being extended on its existing branch; no new repository or branch was created.
+
+### C. Generated artifacts and documentation
+
+- `Victor.AGI/tests/client-env-boundary.test.mjs`: expanded the dependency-free Node test suite from two to three checks. The new case requires the tracked `.env.local` file to be absent and verifies the existing `*.local` ignore rule.
+- `Victor.AGI/.github/workflows/client-env-boundary.yml`: added `.gitignore` and `.env.local` to both pull-request and main-push path filters.
+- Removed the tracked placeholder `Victor.AGI/.env.local`; no real credential was present or changed.
+- This dated Dev-Ville receipt addendum records the evidence and blockers. No application artifact, package, model weight, or release was generated.
+
+### D. Consolidations and refactors
+
+- No module consolidation or broad refactor was justified in this pass.
+- The credential-boundary change now removes the tracked placeholder environment file instead of relying solely on its ignore pattern. The existing `*.local` rule is reused; no duplicate ignore rule was added.
+- The original Puzzle Assembler daily synthesis function and cross-repository write policy remain unchanged.
+
+### E. Tests, builds, and CI
+
+- Local Node.js 22 fixture: `npm run test:security` — **3/3 passed**.
+- Exact PR-head GitHub Actions [Client Credential Boundary run #43987866592](https://github.com/MASSIVEMAGNETICS/Victor.AGI/actions/runs/43987866592), commit `a2adac5ae72d521f558d7cadeec5053e83a00e79` — **SUCCESS**. Checkout, Node.js setup, and the security test step all succeeded.
+- Readback confirmed the updated test and workflow; fetching `.env.local` from the PR branch returned 404 (absent).
+- The scheduled synthesis run [#43974313131](https://github.com/MASSIVEMAGNETICS/victor-sovereign-puzzle-assembler/actions/runs/43974313131) completed SUCCESS as recorded above.
+- **Full Victor.AGI Vite build was not run.** Main contains merge-conflict markers in `App.tsx` and `types.ts`; this credential-boundary PR does not claim to repair the separate frontend build state.
+- No new Dev-Ville runtime tests were run for this documentation-only receipt append. Its exact-head workflows must be checked after the receipt commit.
+
+### F. Security, reliability, sovereignty, provenance, and deployment risks
+
+- The main branch of `Victor.AGI` still contains the browser credential-injection configuration and README key setup until PR #7 is reviewed and merged. The PR branch removes that injection and the tracked placeholder env file, but remains draft.
+- The tracked main-branch `.env.local` value was a literal placeholder, not a real key. No actual credential exposure was established, and no secret rotation or credential change was performed.
+- The unused `@google/genai` dependency remains. Removing it would require a separate lockfile-aware dependency objective.
+- Existing `App.tsx` and `types.ts` merge-conflict markers make the main frontend build unverified; they were not changed in this security PR.
+- No EUSS, model-sovereignty, provenance, approval, deployment, DNS, billing, release, or production setting was changed.
+
+### G. Cross-repository contradictions and integration opportunities
+
+- `MASSIVEMAGNETICS` is a user account, not an organization. Prior reports using “organization” should be read as owner-account inventory, not organization membership inventory.
+- The scheduled collector's 304 repository / 78 PR snapshot differs from current owner-scoped search's 338 repository / 91 PR results. Direct repository listing also stops after 100 records despite larger offsets. Exact reconciliation and private visibility remain unresolved.
+- Public `SUNOKILLER` and private `suno-killer` are separate repositories and must not be merged by name similarity. The private SunoVault repository has 9 open PRs and 3 open issues, including dependency updates and release-trust work; the public SUNOKILLER repository has two open PRs for download-cache safety and release-evidence documentation.
+- `the-ai-ear` has two open PRs for ingress bounds and logging/error handling; these are adjacent to, not proven duplicates of, the music-generation/runtime work.
+- `victorOS` remains distinct from the empty `victor-v2-atomic-pulse` repository. The owner-scoped open queue still includes VictorOS PR #22 and P0 issue #19 for external-effect idempotency/reconciliation; no exactly-once claim is supported by this run.
+- The scheduled synthesis's cross-repository write policy remains `disabled-unless-explicitly-authorized`; this pass did not expand it.
+
+### H. Expected behavior and known non-working paths
+
+- The Victor.AGI PR branch should reject a future committed `.env.local` file in CI and keep the current provider-key injection removed from its Vite config.
+- Main remains exposed to the old configuration until PR #7 is approved and integrated.
+- The root Vite app's full build remains unverified due to merge-conflict markers.
+- The connected GitHub search/listing discrepancy means the owner-wide repository count and private inventory are not authoritative.
+- The daily synthesis did run successfully; this pass did not dispatch or replace it.
+
+### I. Measurable commercial progress
+
+- One tested credential-boundary hardening increment was added to an existing draft PR.
+- Verified customers: **0**. Paid orders: **0**. Revenue attributable to this run: **$0**. Production deployments: **0**. Incremental contribution to the $100/day objective: **$0**. No measurable housing-stability change is established.
+- Documentation and CI evidence are not counted as shipped commercial value.
+
+### J. Exact blockers requiring Bando's decision
+
+1. Independently review and explicitly approve or decline Victor.AGI PR #7. Until then, main retains the browser key-injection configuration.
+2. Decide which frontend is canonical (root Vite app versus `victor-gui/frontend`) before a separate build-recovery objective.
+3. Resolve the existing `App.tsx` / `types.ts` conflict markers in a separately scoped PR; do not fold a broad frontend rewrite into the credential-boundary change.
+4. Provide/authorize an appropriately scoped GitHub integration for complete private-repository inventory if owner-authoritative coverage is required. Do not broaden credentials automatically.
+5. Keep VictorOS issue #19 gated until provider idempotency, reconciliation, and crash-injection acceptance are demonstrated.
+
+### K. Single highest-leverage next action
+
+**Review and explicitly approve or decline Victor.AGI PR #7.** It now removes both the client-side provider-key injection and the tracked placeholder environment file, and its expanded three-test boundary suite passes on the exact PR head. Keep it draft until independent human review.
+
+**Approval gate:** this Dev-Ville addendum is documentation-only and remains in draft PR #43. Victor.AGI PR #7 remains draft and unmerged. No merge, deployment, credential, secret, DNS, billing, release, or production setting was changed.
